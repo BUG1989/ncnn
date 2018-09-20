@@ -380,6 +380,193 @@ void copy_make_border(const Mat& src, Mat& dst, int top, int bottom, int left, i
     delete padding;
 }
 
+static void copy_make_border_image_s8(const Mat& src, Mat& dst, int top, int left, int type, float v_temp)
+{
+    int w = dst.w;
+    int h = dst.h;
+
+    signed char v = (signed char)v_temp;
+
+    const signed char* ptr = src;//.data;
+    signed char* outptr = dst;//.data;
+
+    if (type == BORDER_CONSTANT)
+    {
+        int y = 0;
+        // fill top
+        for (; y < top; y++)
+        {
+            int x = 0;
+            for (; x < w; x++)
+            {
+                outptr[x] = v;
+            }
+            outptr += w;
+        }
+        // fill center
+        for (; y < (top + src.h); y++)
+        {
+            int x = 0;
+            for (; x < left; x++)
+            {
+                outptr[x] = v;
+            }
+            if (src.w < 12)
+            {
+                for (; x < (left + src.w); x++)
+                {
+                    outptr[x] = ptr[x - left];
+                }
+            }
+            else
+            {
+                memcpy(outptr + left, ptr, src.w * sizeof(signed char));
+                x += src.w;
+            }
+            for (; x < w; x++)
+            {
+                outptr[x] = v;
+            }
+            ptr += src.w;
+            outptr += w;
+        }
+        // fill bottom
+        for (; y < h; y++)
+        {
+            int x = 0;
+            for (; x < w; x++)
+            {
+                outptr[x] = v;
+            }
+            outptr += w;
+        }
+    }
+    else if (type == BORDER_REPLICATE)
+    {
+        int y = 0;
+        // fill top
+        for (; y < top; y++)
+        {
+            int x = 0;
+            for (; x < left; x++)
+            {
+                outptr[x] = ptr[0];
+            }
+            if(src.w < 12)
+            {
+                for (; x < (left + src.w); x++)
+                {
+                    outptr[x] = ptr[x - left];
+                }
+            }
+            else
+            {
+                memcpy(outptr + left, ptr, src.w * sizeof(signed char));
+                x += src.w;
+            }
+            for (; x < w; x++)
+            {
+                outptr[x] = ptr[src.w - 1];
+            }
+            outptr += w;
+        }
+        // fill center
+        for (; y < (top + src.h); y++)
+        {
+            int x = 0;
+            for (; x < left; x++)
+            {
+                outptr[x] = ptr[0];
+            }
+            if(src.w < 12)
+            {
+                for (; x < (left + src.w); x++)
+                {
+                    outptr[x] = ptr[x - left];
+                }
+            }
+            else
+            {
+                memcpy(outptr + left, ptr, src.w * sizeof(signed char));
+                x += src.w;
+            }
+            for (; x < w; x++)
+            {
+                outptr[x] = ptr[src.w - 1];
+            }
+            ptr += src.w;
+            outptr += w;
+        }
+        // fill bottom
+        ptr -= src.w;
+        for (; y < h; y++)
+        {
+            int x = 0;
+            for (; x < left; x++)
+            {
+                outptr[x] = ptr[0];
+            }
+            if(src.w < 12)
+            {
+                for (; x < (left + src.w); x++)
+                {
+                    outptr[x] = ptr[x - left];
+                }
+            }
+            else
+            {
+                memcpy(outptr + left, ptr, src.w * sizeof(signed char));
+                x += src.w;
+            }
+            for (; x < w; x++)
+            {
+                outptr[x] = ptr[src.w - 1];
+            }
+            outptr += w;
+        }
+    }
+}
+
+void copy_make_border_s8(const Mat& src, Mat& dst, int top, int bottom, int left, int right, int type, float v, Allocator* allocator, int num_threads)
+{
+    int w = src.w + left + right;
+    int h = src.h + top + bottom;
+    size_t elemsize = src.elemsize;
+
+    if (w == src.w && h == src.h)
+    {
+        dst = src;
+        return;
+    }
+
+    if (src.dims == 2)
+    {
+        dst.create(w, h, elemsize, allocator);
+        if (dst.empty())
+            return;
+
+        copy_make_border_image_s8(src, dst, top, left, type, v);
+    }
+    else if (src.dims == 3)
+    {
+        int channels = src.c;
+
+        dst.create(w, h, channels, elemsize, allocator);
+        if (dst.empty())
+            return;
+
+        // unroll image channel
+        #pragma omp parallel for num_threads(num_threads)
+        for (int q=0; q<channels; q++)
+        {
+            const Mat m = src.channel(q);
+            Mat borderm = dst.channel(q);
+
+            copy_make_border_image_s8(m, borderm, top, left, type, v);
+        }
+    } 
+}
+
 static void copy_cut_border_image(const Mat& src, Mat& dst, int top, int left)
 {
     int w = dst.w;

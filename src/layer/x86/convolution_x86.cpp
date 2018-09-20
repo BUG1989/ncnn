@@ -270,13 +270,13 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     size_t elemsize = bottom_blob.elemsize;
 
     Mat bottom_blob_unbordered = bottom_blob;
-    if (use_int8_inference && elemsize != 1)
+    if (use_int8_inference && elemsize != 1 && requantize_term == 1)
     {
         Mat bottom_blob_int8;
         bottom_blob_int8.create(w, h, channels, (size_t)1u, opt.workspace_allocator);
         if (bottom_blob_int8.empty())
             return -100;
-
+        
         // quantize, scale and round to nearest
         {
             ncnn::Option opt_g = opt;
@@ -291,7 +291,14 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     Mat bottom_blob_bordered = bottom_blob_unbordered;
     if (pad_w > 0 || pad_h > 0)
     {
-        copy_make_border(bottom_blob_unbordered, bottom_blob_bordered, pad_h, pad_h, pad_w, pad_w, BORDER_CONSTANT, 0.f, opt.workspace_allocator, opt.num_threads);
+        if (requantize_term == 1 || !use_int8_inference)
+        {
+            copy_make_border(bottom_blob_unbordered, bottom_blob_bordered, pad_h, pad_h, pad_w, pad_w, BORDER_CONSTANT, 0.f, opt.workspace_allocator, opt.num_threads);
+        }
+        else
+        {
+            copy_make_border_s8(bottom_blob_unbordered, bottom_blob_bordered, pad_h, pad_h, pad_w, pad_w, BORDER_CONSTANT, 0.f, opt.workspace_allocator, opt.num_threads);
+        }
         if (bottom_blob_bordered.empty())
             return -100;
 
@@ -321,9 +328,10 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
         return -100;
 
     if (use_int8_inference)
-    {
+    {    
         conv_int8(bottom_blob_bordered, top_blob, weight_data, opt);
-
+         
+        if (requantize_term == 2)
         // dequantize, reverse scale inplace
         {
             ncnn::Option opt_g = opt;
@@ -331,7 +339,20 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
 
             dequantize->forward_inplace(top_blob, opt_g);
         }
+        else // requantize
+        {
+            ncnn::Option opt_g = opt;
+            opt_g.blob_allocator = top_blob.allocator;
 
+            requantize->forward_inplace(top_blob, opt_g);         
+        }
+#if DEBUG_FEATURE
+        extract_feature_in_f32(0, this->name.c_str(), bottom_blob, top_blob);
+        extract_feature_in_s8(0, this->name.c_str(), bottom_blob_bordered);
+        extract_kernel_s8(0, name.c_str(), weight_data, bias_data, channels, num_output, kernel_size);
+        extract_feature_out_s8(0, this->name.c_str(), top_blob);
+        extract_feature_out_f32(0, this->name.c_str(), bottom_blob, top_blob);
+#endif
         return 0;
     }
 

@@ -22,6 +22,7 @@
 #include "modelbin.h"
 #include "paramdict.h"
 #include "platform.h"
+#include "help.h"
 
 namespace ncnn {
 

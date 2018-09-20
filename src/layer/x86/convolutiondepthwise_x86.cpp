@@ -95,11 +95,12 @@ int ConvolutionDepthWise_x86::load_model(const ModelBin& mb)
         pd.set(5, bias_term);
         pd.set(6, maxk * channels_g * num_output_g);// weight_data_size
         pd.set(8, int8_scale_term);
+        pd.set(9, requantize_term);
 
         op->load_param(pd);
 
         // set weights
-        ncnn::Mat weights[4];
+        ncnn::Mat weights[5];
         weights[0] = weight_data_g;
         weights[1] = bias_data_g;
 
@@ -107,6 +108,7 @@ int ConvolutionDepthWise_x86::load_model(const ModelBin& mb)
         {
             weights[2] = weight_data_int8_scales.range(g, 1);
             weights[3] = bottom_blob_int8_scales.range(g, 1);
+            weights[4] = top_blob_int8_scales.range(g, 1);
         }
 
         op->load_model(ModelBinFromMatArray(weights));
@@ -137,7 +139,7 @@ int ConvolutionDepthWise_x86::forward(const Mat& bottom_blob, Mat& top_blob, con
     const int kernel_extent_h = dilation_h * (kernel_h - 1) + 1;
 
     Mat bottom_blob_unbordered = bottom_blob;
-    if (use_int8_inference && elemsize != 1)
+    if (use_int8_inference && elemsize != 1 && requantize_term == 1)
     {
         Mat bottom_blob_int8;
         bottom_blob_int8.create(w, h, channels, (size_t)1u, opt.workspace_allocator);
@@ -165,7 +167,14 @@ int ConvolutionDepthWise_x86::forward(const Mat& bottom_blob, Mat& top_blob, con
     Mat bottom_blob_bordered = bottom_blob_unbordered;
     if (pad_w > 0 || pad_h > 0)
     {
-        copy_make_border(bottom_blob_unbordered, bottom_blob_bordered, pad_h, pad_h, pad_w, pad_w, BORDER_CONSTANT, 0.f, opt.workspace_allocator, opt.num_threads);
+        if (requantize_term == 1 || !use_int8_inference)
+        {
+            copy_make_border(bottom_blob_unbordered, bottom_blob_bordered, pad_h, pad_h, pad_w, pad_w, BORDER_CONSTANT, 0.f, opt.workspace_allocator, opt.num_threads);
+        }
+        else
+        {
+            copy_make_border_s8(bottom_blob_unbordered, bottom_blob_bordered, pad_h, pad_h, pad_w, pad_w, BORDER_CONSTANT, 0.f, opt.workspace_allocator, opt.num_threads);
+        }        
         if (bottom_blob_bordered.empty())
             return -100;
 
@@ -212,18 +221,37 @@ int ConvolutionDepthWise_x86::forward(const Mat& bottom_blob, Mat& top_blob, con
                         convdw3x3s2_int8_sse(bottom_blob_bordered, top_blob, weight_data, opt);
                     }
 
-                    // dequantize, reverse scale inplace
-                    #pragma omp parallel for num_threads(opt.num_threads)
-                    for (int g=0; g<group; g++)
+                    if (requantize_term == 2)// dequantize, reverse scale inplace
                     {
-                        ncnn::Option opt_g = opt;
-                        opt_g.num_threads = 1;
-                        opt_g.blob_allocator = top_blob.allocator;
+                        #pragma omp parallel for num_threads(opt.num_threads)
+                        for (int g=0; g<group; g++)
+                        {
+                            ncnn::Option opt_g = opt;
+                            opt_g.num_threads = 1;
+                            opt_g.blob_allocator = top_blob.allocator;
 
-                        Mat top_blob_g = top_blob.channel(g);
-                        dequantize_ops[g]->forward_inplace(top_blob_g, opt_g);
+                            Mat top_blob_g = top_blob.channel(g);
+                            dequantize_ops[g]->forward_inplace(top_blob_g, opt_g);
+                        }
                     }
+                    else // requantize
+                    {
+                        #pragma omp parallel for num_threads(opt.num_threads)
+                        for (int g=0; g<group; g++)
+                        {
+                            ncnn::Option opt_g = opt;
+                            opt_g.num_threads = 1;
+                            opt_g.blob_allocator = top_blob.allocator;
 
+                            Mat top_blob_g = top_blob.channel(g);
+                            requantize_ops[g]->forward_inplace(top_blob_g, opt_g);
+                        }
+                    }
+#if DEBUG_FEATURE
+                    extract_feature_in_f32(0, this->name.c_str(), bottom_blob, top_blob);
+                    extract_feature_in_s8(0, this->name.c_str(), bottom_blob_bordered);
+                    extract_feature_out_f32(0, this->name.c_str(), bottom_blob, top_blob);
+#endif                       
                     return 0;
                 }
             }

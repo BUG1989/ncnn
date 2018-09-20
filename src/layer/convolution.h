@@ -47,6 +47,7 @@ public:
     int weight_data_size;
 
     int int8_scale_term;
+    int requantize_term; //0:mid layer 1:first layer 2:last layer
 
     // model
     Mat weight_data;
@@ -54,11 +55,13 @@ public:
 
     float weight_data_int8_scale;
     float bottom_blob_int8_scale;
+    float top_blob_int8_scale;
 
     bool use_int8_inference;
 
     ncnn::Layer* quantize;
     ncnn::Layer* dequantize;
+    ncnn::Layer* requantize;
 };
 
 } // namespace ncnn

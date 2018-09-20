@@ -22,17 +22,62 @@ ReLU::ReLU()
 {
     one_blob_only = true;
     support_inplace = true;
+    use_int8_inference = 0;
 }
 
 int ReLU::load_param(const ParamDict& pd)
 {
     slope = pd.get(0, 0.f);
+    use_int8_inference = pd.get(1, 0);
+
+    return 0;
+}
+
+int ReLU::forward_inplace_int8(Mat& bottom_top_blob, const Option& opt) const
+{
+    int w = bottom_top_blob.w;
+    int h = bottom_top_blob.h;
+    int channels = bottom_top_blob.c;
+    int size = w * h;
+
+    if (slope == 0.f)
+    {
+        #pragma omp parallel for num_threads(opt.num_threads)
+        for (int q=0; q<channels; q++)
+        {
+            signed char* ptr = bottom_top_blob.channel(q);
+
+            for (int i=0; i<size; i++)
+            {
+                if (ptr[i] < 0)
+                    ptr[i] = 0;
+            }
+        }
+    }
+    else
+    {
+        // TODO
+        // #pragma omp parallel for num_threads(opt.num_threads)
+        // for (int q=0; q<channels; q++)
+        // {
+        //     float* ptr = bottom_top_blob.channel(q);
+
+        //     for (int i=0; i<size; i++)
+        //     {
+        //         if (ptr[i] < 0)
+        //             ptr[i] *= slope;
+        //     }
+        // }
+    }
 
     return 0;
 }
 
 int ReLU::forward_inplace(Mat& bottom_top_blob, const Option& opt) const
 {
+    if (use_int8_inference)
+        return ReLU::forward_inplace_int8(bottom_top_blob, opt);
+
     int w = bottom_top_blob.w;
     int h = bottom_top_blob.h;
     int channels = bottom_top_blob.c;

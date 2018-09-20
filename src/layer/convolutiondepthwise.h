@@ -48,6 +48,7 @@ public:
     int group;
 
     int int8_scale_term;
+    int requantize_term; //0:mid layer 1:first layer 2:last layer 
 
     // model
     Mat weight_data;
@@ -55,11 +56,13 @@ public:
 
     Mat weight_data_int8_scales;
     Mat bottom_blob_int8_scales;
+    Mat top_blob_int8_scales;
 
     bool use_int8_inference;
 
     std::vector<ncnn::Layer*> quantize_ops;
     std::vector<ncnn::Layer*> dequantize_ops;
+    std::vector<ncnn::Layer*> requantize_ops;
 };
 
 } // namespace ncnn

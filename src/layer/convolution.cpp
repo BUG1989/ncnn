@@ -27,12 +27,14 @@ Convolution::Convolution()
 
     quantize = 0;
     dequantize = 0;
+    requantize = 0;
 }
 
 Convolution::~Convolution()
 {
     delete quantize;
     delete dequantize;
+    delete requantize;
 }
 
 int Convolution::load_param(const ParamDict& pd)
@@ -49,6 +51,7 @@ int Convolution::load_param(const ParamDict& pd)
     bias_term = pd.get(5, 0);
     weight_data_size = pd.get(6, 0);
     int8_scale_term = pd.get(8, 0);
+    requantize_term = pd.get(9, 0);
 
     use_int8_inference = pd.use_int8_inference;
 
@@ -75,6 +78,9 @@ int Convolution::load_model(const ModelBin& mb)
     {
         weight_data_int8_scale = mb.load(1, 1)[0];
         bottom_blob_int8_scale = mb.load(1, 1)[0];
+        top_blob_int8_scale = mb.load(1, 1)[0];
+
+        //printf("%s w:%f, b:%f, t:%f\n", name.c_str(), weight_data_int8_scale, bottom_blob_int8_scale, top_blob_int8_scale);
     }
 
     bool weight_data_is_int8 = (weight_data.elemsize == (size_t)1u);
@@ -133,6 +139,25 @@ int Convolution::load_model(const ModelBin& mb)
 
             dequantize->load_model(ModelBinFromMatArray(weights));
         }
+
+        requantize = ncnn::create_layer(ncnn::LayerType::Requantize);
+        {
+            float scale_in = bottom_blob_int8_scale * weight_data_int8_scale;
+            float scale_out = top_blob_int8_scale / (bottom_blob_int8_scale * weight_data_int8_scale);
+
+            ncnn::ParamDict pd;
+            pd.set(0, scale_in);// scale_in
+            pd.set(1, scale_out);// requantize scale
+            pd.set(2, bias_term);// bias_term
+            pd.set(3, num_output);// bias_data_size
+
+            requantize->load_param(pd);
+
+            ncnn::Mat weights[1];
+            weights[0] = bias_data;
+
+            requantize->load_model(ModelBinFromMatArray(weights));                
+        }
     }
 
     return 0;
@@ -158,13 +183,14 @@ int Convolution::forward(const Mat& bottom_blob, Mat& top_blob, const Option& op
             pd.set(1, bias_term);
             pd.set(2, weight_data_size);
             pd.set(8, int8_scale_term);
+            pd.set(9, requantize_term);
 
             pd.use_int8_inference = use_int8_inference;
 
             op->load_param(pd);
 
             // set weights
-            ncnn::Mat weights[4];
+            ncnn::Mat weights[5];
             weights[0] = weight_data;
             weights[1] = bias_data;
 
@@ -172,6 +198,7 @@ int Convolution::forward(const Mat& bottom_blob, Mat& top_blob, const Option& op
             {
                 weights[2] = Mat(1, (size_t)4u, (void*)&weight_data_int8_scale);
                 weights[3] = Mat(1, (size_t)4u, (void*)&bottom_blob_int8_scale);
+                weights[4] = Mat(1, (size_t)4u, (void*)&top_blob_int8_scale);
             }
 
             op->load_model(ModelBinFromMatArray(weights));
@@ -196,7 +223,7 @@ int Convolution::forward(const Mat& bottom_blob, Mat& top_blob, const Option& op
     const int kernel_extent_h = dilation_h * (kernel_h - 1) + 1;
 
     Mat bottom_blob_unbordered = bottom_blob;
-    if (use_int8_inference && elemsize != 1)
+    if (use_int8_inference && elemsize != 1 && requantize_term == 1)
     {
         Mat bottom_blob_int8;
         bottom_blob_int8.create(w, h, channels, (size_t)1u, opt.workspace_allocator);
@@ -217,7 +244,14 @@ int Convolution::forward(const Mat& bottom_blob, Mat& top_blob, const Option& op
     Mat bottom_blob_bordered = bottom_blob_unbordered;
     if (pad_w > 0 || pad_h > 0)
     {
-        copy_make_border(bottom_blob_unbordered, bottom_blob_bordered, pad_h, pad_h, pad_w, pad_w, BORDER_CONSTANT, 0.f, opt.workspace_allocator, opt.num_threads);
+        if (requantize_term == 1 || !use_int8_inference)
+        {
+            copy_make_border(bottom_blob_unbordered, bottom_blob_bordered, pad_h, pad_h, pad_w, pad_w, BORDER_CONSTANT, 0.f, opt.workspace_allocator, opt.num_threads);
+        }
+        else
+        {
+            copy_make_border_s8(bottom_blob_unbordered, bottom_blob_bordered, pad_h, pad_h, pad_w, pad_w, BORDER_CONSTANT, 0.f, opt.workspace_allocator, opt.num_threads);
+        }        
         if (bottom_blob_bordered.empty())
             return -100;
 
@@ -306,12 +340,20 @@ int Convolution::forward(const Mat& bottom_blob, Mat& top_blob, const Option& op
             }
         }
 
+        if (requantize_term == 2)
         // dequantize, reverse scale inplace
         {
             ncnn::Option opt_g = opt;
             opt_g.blob_allocator = top_blob.allocator;
 
             dequantize->forward_inplace(top_blob, opt_g);
+        }
+        else // requantize
+        {
+            ncnn::Option opt_g = opt;
+            opt_g.blob_allocator = top_blob.allocator;
+
+            requantize->forward_inplace(top_blob, opt_g);            
         }
 
         return 0;

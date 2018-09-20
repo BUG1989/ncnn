@@ -420,7 +420,7 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
 #endif // !__aarch64__
 #endif // __ARM_NEON
         {
-        conv_int8(bottom_blob_bordered, top_blob, weight_data, opt);
+            conv_int8(bottom_blob_bordered, top_blob, weight_data, opt);
         }
 
         // dequantize, reverse scale inplace
@@ -430,6 +430,11 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
 
             dequantize->forward_inplace(top_blob, opt_g);
         }
+#if DEBUG_FEATURE
+        extract_feature_in_f32(0, this->name.c_str(), bottom_blob, top_blob);
+        extract_feature_in_s8(0, this->name.c_str(), bottom_blob_bordered);
+        extract_feature_out_f32(0, this->name.c_str(), bottom_blob, top_blob);
+#endif         
 
         return 0;
     }

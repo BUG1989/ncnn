@@ -37,6 +37,11 @@ ConvolutionDepthWise::~ConvolutionDepthWise()
         delete dequantize_ops[i];
 
     dequantize_ops.clear();
+
+    for (int i=0; i<(int)requantize_ops.size(); i++)
+        delete requantize_ops[i];
+
+    requantize_ops.clear();    
 }
 
 int ConvolutionDepthWise::load_param(const ParamDict& pd)
@@ -54,6 +59,7 @@ int ConvolutionDepthWise::load_param(const ParamDict& pd)
     weight_data_size = pd.get(6, 0);
     group = pd.get(7, 1);
     int8_scale_term = pd.get(8, 0);
+    requantize_term = pd.get(9, 0);
 
     use_int8_inference = pd.use_int8_inference;
 
@@ -86,11 +92,13 @@ int ConvolutionDepthWise::load_model(const ModelBin& mb)
     {
         weight_data_int8_scales = mb.load(group, 1);
         bottom_blob_int8_scales = mb.load(group, 1);
+        top_blob_int8_scales = mb.load(group, 1);
     }
     else if (int8_scale_term == 2)
     {
         weight_data_int8_scales = mb.load(1, 1);
         bottom_blob_int8_scales = mb.load(1, 1);
+        top_blob_int8_scales = mb.load(1, 1);
 
         // extend group if only one provided
         float weight_data_int8_scale = weight_data_int8_scales[0];
@@ -100,6 +108,12 @@ int ConvolutionDepthWise::load_model(const ModelBin& mb)
         float bottom_blob_int8_scale = bottom_blob_int8_scales[0];
         bottom_blob_int8_scales = Mat(group);
         bottom_blob_int8_scales.fill(bottom_blob_int8_scale);
+
+        float top_blob_int8_scale = top_blob_int8_scales[0];
+        top_blob_int8_scales = Mat(group);
+        top_blob_int8_scales.fill(top_blob_int8_scale);
+
+        //printf("%s w:%f, b:%f, t:%f\n", name.c_str(), weight_data_int8_scales[0], bottom_blob_int8_scales[0], top_blob_int8_scales[0]);
     }
 
     for (int i=0; i<(int)quantize_ops.size(); i++)
@@ -111,6 +125,11 @@ int ConvolutionDepthWise::load_model(const ModelBin& mb)
         delete dequantize_ops[i];
 
     dequantize_ops.clear();
+
+    for (int i=0; i<(int)requantize_ops.size(); i++)
+        delete requantize_ops[i];
+
+    requantize_ops.clear();    
 
     bool weight_data_is_int8 = (weight_data.elemsize == (size_t)1u);
     bool weight_data_is_float32 = (weight_data.elemsize == (size_t)4u);
@@ -156,6 +175,7 @@ int ConvolutionDepthWise::load_model(const ModelBin& mb)
     {
         quantize_ops.resize(group);
         dequantize_ops.resize(group);
+        requantize_ops.resize(group);
 
         for (int g=0; g<group; g++)
         {
@@ -185,6 +205,27 @@ int ConvolutionDepthWise::load_model(const ModelBin& mb)
 
             dequantize_ops[g]->load_model(ModelBinFromMatArray(weights));
         }
+
+        for (int g=0; g<group; g++)
+        {
+            requantize_ops[g] = ncnn::create_layer(ncnn::LayerType::Requantize);
+
+            float scale_in = bottom_blob_int8_scales[g] * weight_data_int8_scales[g];
+            float scale_out = top_blob_int8_scales[g] / (bottom_blob_int8_scales[g] * weight_data_int8_scales[g]);            
+
+            ncnn::ParamDict pd;
+            pd.set(0, scale_in);// scale
+            pd.set(1, scale_out);
+            pd.set(2, bias_term);// bias_term
+            pd.set(3, 1);// bias_data_size
+
+            requantize_ops[g]->load_param(pd);
+
+            ncnn::Mat weights[1];
+            weights[0] = bias_data.range(g, 1);
+
+            requantize_ops[g]->load_model(ModelBinFromMatArray(weights));
+        }        
     }
 
     return 0;
@@ -212,7 +253,7 @@ int ConvolutionDepthWise::forward(const Mat& bottom_blob, Mat& top_blob, const O
     const int kernel_extent_h = dilation_h * (kernel_h - 1) + 1;
 
     Mat bottom_blob_unbordered = bottom_blob;
-    if (use_int8_inference && elemsize != 1)
+    if (use_int8_inference && elemsize != 1 && requantize_term == 1)
     {
         Mat bottom_blob_int8;
         bottom_blob_int8.create(w, h, channels, (size_t)1u, opt.workspace_allocator);
@@ -323,7 +364,7 @@ int ConvolutionDepthWise::forward(const Mat& bottom_blob, Mat& top_blob, const O
                     outptr += outw;
                 }
 
-                // dequantize, reverse scale inplace
+                if (requantize_term == 2)// dequantize, reverse scale inplace
                 {
                     ncnn::Option opt_g = opt;
                     opt_g.num_threads = 1;
@@ -331,6 +372,15 @@ int ConvolutionDepthWise::forward(const Mat& bottom_blob, Mat& top_blob, const O
 
                     Mat top_blob_g = top_blob.channel_range(g, 1);
                     dequantize_ops[g]->forward_inplace(top_blob_g, opt_g);
+                }
+                else // requantize
+                {
+                    ncnn::Option opt_g = opt;
+                    opt_g.num_threads = 1;
+                    opt_g.blob_allocator = top_blob.allocator;
+
+                    Mat top_blob_g = top_blob.channel_range(g, 1);
+                    requantize_ops[g]->forward_inplace(top_blob_g, opt_g);                    
                 }
             }
         }
@@ -383,16 +433,31 @@ int ConvolutionDepthWise::forward(const Mat& bottom_blob, Mat& top_blob, const O
                 }
             }
 
-            // dequantize, reverse scale inplace
-            #pragma omp parallel for num_threads(opt.num_threads)
-            for (int g=0; g<group; g++)
+            if (requantize_term == 2)// dequantize, reverse scale inplace
             {
-                ncnn::Option opt_g = opt;
-                opt_g.num_threads = 1;
-                opt_g.blob_allocator = top_blob.allocator;
+                #pragma omp parallel for num_threads(opt.num_threads)
+                for (int g=0; g<group; g++)
+                {
+                    ncnn::Option opt_g = opt;
+                    opt_g.num_threads = 1;
+                    opt_g.blob_allocator = top_blob.allocator;
 
-                Mat top_blob_g = top_blob.channel_range(num_output_g * g, num_output_g);
-                dequantize_ops[g]->forward_inplace(top_blob_g, opt_g);
+                    Mat top_blob_g = top_blob.channel_range(num_output_g * g, num_output_g);
+                    dequantize_ops[g]->forward_inplace(top_blob_g, opt_g);
+                }
+            }
+            else// requantize
+            {
+                #pragma omp parallel for num_threads(opt.num_threads)
+                for (int g=0; g<group; g++)
+                {
+                    ncnn::Option opt_g = opt;
+                    opt_g.num_threads = 1;
+                    opt_g.blob_allocator = top_blob.allocator;
+
+                    Mat top_blob_g = top_blob.channel_range(num_output_g * g, num_output_g);
+                    requantize_ops[g]->forward_inplace(top_blob_g, opt_g);
+                }
             }
         }
 

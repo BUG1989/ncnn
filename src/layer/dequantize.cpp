@@ -160,7 +160,7 @@ int Dequantize::forward_inplace(Mat& bottom_top_blob, const Option& opt) const
                     ptr[i] = intptr[i] * scale;
                 }
             }
-        }
+        }    
     }
 
     return 0;
