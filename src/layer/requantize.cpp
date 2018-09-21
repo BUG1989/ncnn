@@ -36,7 +36,7 @@ DEFINE_LAYER_CREATOR(Requantize)
 Requantize::Requantize()
 {
     one_blob_only = true;
-    support_inplace = true;
+    support_inplace = false;
     fusion_relu = false;
 }
 
@@ -63,7 +63,8 @@ int Requantize::load_model(const ModelBin& mb)
     return 0;
 }
 
-int Requantize::forward_inplace(Mat& bottom_top_blob, const Option& opt) const
+#if 0
+int Requantize::forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) const
 { 
     int dims = bottom_top_blob.dims;
 
@@ -187,6 +188,145 @@ int Requantize::forward_inplace(Mat& bottom_top_blob, const Option& opt) const
             {
                 const int* intptr = bottom_top_blob.channel(q);
                 signed char* ptr = bottom_top_blob.channel(q);
+
+                for (int i=0; i<size; i++)
+                {
+                    ptr[i] = float2int8(intptr[i] * scale_out);
+                    if (fusion_relu && ptr[i] < 0)
+                        ptr[i] = 0;                    
+                }
+            }
+        }    
+    }
+
+    return 0;
+}
+#endif
+
+int Requantize::forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) const
+{ 
+    int dims = bottom_blob.dims;
+
+    if (dims == 1)
+    {
+        int w = bottom_blob.w;
+
+        const int* intptr = bottom_blob;
+        signed char * ptr = top_blob;
+
+        if (bias_term)
+        {
+            if (bias_data_size > 1)
+            {
+                #pragma omp parallel for num_threads(opt.num_threads)
+                for (int i=0; i<w; i++)
+                {
+					float bias_tm = bias_data[i] * scale_in;
+                    ptr[i] = float2int8((intptr[i] + bias_tm) * scale_out);
+                    if (fusion_relu && ptr[i] < 0)
+                        ptr[i] = 0;
+                }
+            }
+            else
+            {
+                float bias = bias_data[0];
+				float bias_tm = bias * scale_in;
+                #pragma omp parallel for num_threads(opt.num_threads)
+                for (int i=0; i<w; i++)
+                {
+                    ptr[i] = float2int8((intptr[i] + bias_tm) * scale_out);
+                    if (fusion_relu && ptr[i] < 0)
+                        ptr[i] = 0;                    
+                }
+            }
+        }
+        else
+        {
+            #pragma omp parallel for num_threads(opt.num_threads)
+            for (int i=0; i<w; i++)
+            {
+                ptr[i] = float2int8(intptr[i] * scale_out);
+                if (fusion_relu && ptr[i] < 0)
+                    ptr[i] = 0;                
+            }
+        }
+    }
+
+    if (dims == 2)
+    {
+        int w = bottom_blob.w;
+        int h = bottom_blob.h;
+
+        if (bias_term)
+        {
+            #pragma omp parallel for num_threads(opt.num_threads)
+            for (int i=0; i<h; i++)
+            {
+                const int* intptr = bottom_blob.row<const int>(i);
+                signed char* ptr = top_blob.row<signed char>(i);
+
+                float bias = bias_data_size > 1 ? bias_data[i] : bias_data[0];
+				float bias_tm = bias * scale_in;
+
+                for (int j=0; j<w; j++)
+                {
+                    ptr[j] = float2int8((intptr[j] + bias_tm) * scale_out);
+                    if (fusion_relu && ptr[j] < 0)
+                        ptr[j] = 0;                    
+                }
+            }
+        }
+        else
+        {
+            #pragma omp parallel for num_threads(opt.num_threads)
+            for (int i=0; i<h; i++)
+            {
+                const int* intptr = bottom_blob.row<const int>(i);
+                signed char* ptr = top_blob.row<signed char>(i);
+
+                for (int j=0; j<w; j++)
+                {
+                    ptr[j] = float2int8(intptr[j] * scale_out);
+                    if (fusion_relu && ptr[j] < 0)
+                        ptr[j] = 0;                    
+                }
+            }
+        }
+    }
+
+    if (dims == 3)
+    {
+        int w = bottom_blob.w;
+        int h = bottom_blob.h;
+        int channels = bottom_blob.c;
+        int size = w * h;      
+
+        if (bias_term)
+        {
+            #pragma omp parallel for num_threads(opt.num_threads)
+            for (int q=0; q<channels; q++)
+            {
+                const int* intptr = bottom_blob.channel(q);
+                signed char* ptr = top_blob.channel(q);
+
+                float bias = bias_data_size > 1 ? bias_data[q] : bias_data[0];
+				float bias_tm = bias * scale_in;
+
+                for (int i=0; i<size; i++)
+                {
+                    ptr[i] = float2int8((intptr[i] + bias_tm) * scale_out);
+                    if (fusion_relu && ptr[i] < 0)
+                        ptr[i] = 0;                    
+                }
+            }
+        }
+        else
+        {
+            #pragma omp parallel for num_threads(opt.num_threads)
+            for (int q=0; q<channels; q++)
+            {
+                const int* intptr = bottom_blob.channel(q);
+                signed char* ptr = top_blob.channel(q);
 
                 for (int i=0; i<size; i++)
                 {

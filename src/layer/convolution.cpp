@@ -244,14 +244,7 @@ int Convolution::forward(const Mat& bottom_blob, Mat& top_blob, const Option& op
     Mat bottom_blob_bordered = bottom_blob_unbordered;
     if (pad_w > 0 || pad_h > 0)
     {
-        if (requantize_term == 1 || !use_int8_inference)
-        {
-            copy_make_border(bottom_blob_unbordered, bottom_blob_bordered, pad_h, pad_h, pad_w, pad_w, BORDER_CONSTANT, 0.f, opt.workspace_allocator, opt.num_threads);
-        }
-        else
-        {
-            copy_make_border_s8(bottom_blob_unbordered, bottom_blob_bordered, pad_h, pad_h, pad_w, pad_w, BORDER_CONSTANT, 0.f, opt.workspace_allocator, opt.num_threads);
-        }        
+        copy_make_border(bottom_blob_unbordered, bottom_blob_bordered, pad_h, pad_h, pad_w, pad_w, BORDER_CONSTANT, 0.f, opt.workspace_allocator, opt.num_threads);       
         if (bottom_blob_bordered.empty())
             return -100;
 
@@ -303,46 +296,50 @@ int Convolution::forward(const Mat& bottom_blob, Mat& top_blob, const Option& op
 
     if (use_int8_inference)
     {
-        // num_output
-        #pragma omp parallel for num_threads(opt.num_threads)
-        for (int p=0; p<num_output; p++)
-        {
-            int* outptr = top_blob.channel(p);
-
-            for (int i = 0; i < outh; i++)
-            {
-                for (int j = 0; j < outw; j++)
-                {
-                    int sum = 0;
-
-                    const signed char* kptr = (const signed char*)weight_data + maxk * channels * p;
-
-                    // channels
-                    for (int q=0; q<channels; q++)
-                    {
-                        const Mat m = bottom_blob_bordered.channel(q);
-                        const signed char* sptr = m.row<signed char>(i*stride_h) + j*stride_w;
-
-                        for (int k = 0; k < maxk; k++)
-                        {
-                            int val = sptr[ space_ofs[k] ];
-                            int w = kptr[k];
-                            sum += val * w;
-                        }
-
-                        kptr += maxk;
-                    }
-
-                    outptr[j] = sum;
-                }
-
-                outptr += outw;
-            }
-        }
-
         if (requantize_term == 2)
         // dequantize, reverse scale inplace
         {
+            top_blob.create(outw, outh, num_output, (size_t)4u, opt.blob_allocator);
+            if (top_blob.empty())
+                return -100;      
+
+            // num_output
+            #pragma omp parallel for num_threads(opt.num_threads)
+            for (int p=0; p<num_output; p++)
+            {
+                int* outptr = top_blob.channel(p);
+
+                for (int i = 0; i < outh; i++)
+                {
+                    for (int j = 0; j < outw; j++)
+                    {
+                        int sum = 0;
+
+                        const signed char* kptr = (const signed char*)weight_data + maxk * channels * p;
+
+                        // channels
+                        for (int q=0; q<channels; q++)
+                        {
+                            const Mat m = bottom_blob_bordered.channel(q);
+                            const signed char* sptr = m.row<signed char>(i*stride_h) + j*stride_w;
+
+                            for (int k = 0; k < maxk; k++)
+                            {
+                                int val = sptr[ space_ofs[k] ];
+                                int w = kptr[k];
+                                sum += val * w;
+                            }
+
+                            kptr += maxk;
+                        }
+
+                        outptr[j] = sum;
+                    }
+
+                    outptr += outw;
+                }
+            }
+
             ncnn::Option opt_g = opt;
             opt_g.blob_allocator = top_blob.allocator;
 
@@ -350,10 +347,56 @@ int Convolution::forward(const Mat& bottom_blob, Mat& top_blob, const Option& op
         }
         else // requantize
         {
+            Mat top_blob_tm;
+            top_blob_tm.create(outw, outh, num_output, (size_t)4u, opt.workspace_allocator);
+            if (top_blob_tm.empty())
+                return -100;              
+
+            top_blob.create(outw, outh, num_output, (size_t)1u, opt.blob_allocator);
+            if (top_blob.empty())
+                return -100;   
+
+            // num_output
+            #pragma omp parallel for num_threads(opt.num_threads)
+            for (int p=0; p<num_output; p++)
+            {
+                int* outptr = top_blob_tm.channel(p);
+
+                for (int i = 0; i < outh; i++)
+                {
+                    for (int j = 0; j < outw; j++)
+                    {
+                        int sum = 0;
+
+                        const signed char* kptr = (const signed char*)weight_data + maxk * channels * p;
+
+                        // channels
+                        for (int q=0; q<channels; q++)
+                        {
+                            const Mat m = bottom_blob_bordered.channel(q);
+                            const signed char* sptr = m.row<signed char>(i*stride_h) + j*stride_w;
+
+                            for (int k = 0; k < maxk; k++)
+                            {
+                                int val = sptr[ space_ofs[k] ];
+                                int w = kptr[k];
+                                sum += val * w;
+                            }
+
+                            kptr += maxk;
+                        }
+
+                        outptr[j] = sum;
+                    }
+
+                    outptr += outw;
+                }
+            }
+
             ncnn::Option opt_g = opt;
             opt_g.blob_allocator = top_blob.allocator;
 
-            requantize->forward_inplace(top_blob, opt_g);            
+            requantize->forward(top_blob_tm ,top_blob, opt_g);            
         }
 
         return 0;

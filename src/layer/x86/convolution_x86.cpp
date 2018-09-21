@@ -291,14 +291,7 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     Mat bottom_blob_bordered = bottom_blob_unbordered;
     if (pad_w > 0 || pad_h > 0)
     {
-        if (requantize_term == 1 || !use_int8_inference)
-        {
-            copy_make_border(bottom_blob_unbordered, bottom_blob_bordered, pad_h, pad_h, pad_w, pad_w, BORDER_CONSTANT, 0.f, opt.workspace_allocator, opt.num_threads);
-        }
-        else
-        {
-            copy_make_border_s8(bottom_blob_unbordered, bottom_blob_bordered, pad_h, pad_h, pad_w, pad_w, BORDER_CONSTANT, 0.f, opt.workspace_allocator, opt.num_threads);
-        }
+        copy_make_border(bottom_blob_unbordered, bottom_blob_bordered, pad_h, pad_h, pad_w, pad_w, BORDER_CONSTANT, 0.f, opt.workspace_allocator, opt.num_threads);
         if (bottom_blob_bordered.empty())
             return -100;
 
@@ -325,15 +318,19 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
 
     top_blob.create(outw, outh, num_output, elemsize, opt.blob_allocator);
     if (top_blob.empty())
-        return -100;
+        return -100; 
 
     if (use_int8_inference)
-    {    
-        conv_int8(bottom_blob_bordered, top_blob, weight_data, opt);
-         
+    {   
         if (requantize_term == 2)
         // dequantize, reverse scale inplace
         {
+            top_blob.create(outw, outh, num_output, (size_t)4u, opt.blob_allocator);
+            if (top_blob.empty())
+                return -100;  
+
+            conv_int8(bottom_blob_bordered, top_blob, weight_data, opt);
+
             ncnn::Option opt_g = opt;
             opt_g.blob_allocator = top_blob.allocator;
 
@@ -341,10 +338,21 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
         }
         else // requantize
         {
+            Mat top_blob_tm;
+            top_blob_tm.create(outw, outh, num_output, (size_t)4u, opt.workspace_allocator);
+            if (top_blob_tm.empty())
+                return -100;              
+
+            top_blob.create(outw, outh, num_output, (size_t)1u, opt.blob_allocator);
+            if (top_blob.empty())
+                return -100;    
+
+            conv_int8(bottom_blob_bordered, top_blob_tm, weight_data, opt);
+
             ncnn::Option opt_g = opt;
             opt_g.blob_allocator = top_blob.allocator;
 
-            requantize->forward_inplace(top_blob, opt_g);         
+            requantize->forward(top_blob_tm, top_blob, opt_g);         
         }
 #if DEBUG_FEATURE
         extract_feature_in_f32(0, this->name.c_str(), bottom_blob, top_blob);

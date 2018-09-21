@@ -167,14 +167,7 @@ int ConvolutionDepthWise_x86::forward(const Mat& bottom_blob, Mat& top_blob, con
     Mat bottom_blob_bordered = bottom_blob_unbordered;
     if (pad_w > 0 || pad_h > 0)
     {
-        if (requantize_term == 1 || !use_int8_inference)
-        {
-            copy_make_border(bottom_blob_unbordered, bottom_blob_bordered, pad_h, pad_h, pad_w, pad_w, BORDER_CONSTANT, 0.f, opt.workspace_allocator, opt.num_threads);
-        }
-        else
-        {
-            copy_make_border_s8(bottom_blob_unbordered, bottom_blob_bordered, pad_h, pad_h, pad_w, pad_w, BORDER_CONSTANT, 0.f, opt.workspace_allocator, opt.num_threads);
-        }        
+        copy_make_border(bottom_blob_unbordered, bottom_blob_bordered, pad_h, pad_h, pad_w, pad_w, BORDER_CONSTANT, 0.f, opt.workspace_allocator, opt.num_threads);     
         if (bottom_blob_bordered.empty())
             return -100;
 
@@ -212,17 +205,20 @@ int ConvolutionDepthWise_x86::forward(const Mat& bottom_blob, Mat& top_blob, con
             {
                 if ((stride_w == 1 && stride_h == 1) || (stride_w == 2 && stride_h == 2))
                 {
-                    if (stride_w == 1 && stride_h == 1)
-                    {
-                        convdw3x3s1_int8_sse(bottom_blob_bordered, top_blob, weight_data, opt);
-                    }
-                    else if (stride_w == 2 && stride_h == 2)
-                    {
-                        convdw3x3s2_int8_sse(bottom_blob_bordered, top_blob, weight_data, opt);
-                    }
-
                     if (requantize_term == 2)// dequantize, reverse scale inplace
                     {
+                        top_blob.create(outw, outh, num_output, (size_t)4u, opt.blob_allocator);
+                        if (top_blob.empty())
+                            return -100;
+
+                        if (stride_w == 1 && stride_h == 1)
+                        {
+                            convdw3x3s1_int8_sse(bottom_blob_bordered, top_blob, weight_data, opt);
+                        }
+                        else if (stride_w == 2 && stride_h == 2)
+                        {
+                            convdw3x3s2_int8_sse(bottom_blob_bordered, top_blob, weight_data, opt);
+                        }                        
                         #pragma omp parallel for num_threads(opt.num_threads)
                         for (int g=0; g<group; g++)
                         {
@@ -236,6 +232,19 @@ int ConvolutionDepthWise_x86::forward(const Mat& bottom_blob, Mat& top_blob, con
                     }
                     else // requantize
                     {
+                        Mat top_blob_tm;
+                        top_blob_tm.create(outw, outh, num_output, (size_t)4u, opt.workspace_allocator);
+                        if (top_blob_tm.empty())
+                            return -100;                                
+
+                        if (stride_w == 1 && stride_h == 1)
+                        {
+                            convdw3x3s1_int8_sse(bottom_blob_bordered, top_blob_tm, weight_data, opt);
+                        }
+                        else if (stride_w == 2 && stride_h == 2)
+                        {
+                            convdw3x3s2_int8_sse(bottom_blob_bordered, top_blob_tm, weight_data, opt);
+                        }                        
                         #pragma omp parallel for num_threads(opt.num_threads)
                         for (int g=0; g<group; g++)
                         {
@@ -244,7 +253,8 @@ int ConvolutionDepthWise_x86::forward(const Mat& bottom_blob, Mat& top_blob, con
                             opt_g.blob_allocator = top_blob.allocator;
 
                             Mat top_blob_g = top_blob.channel(g);
-                            requantize_ops[g]->forward_inplace(top_blob_g, opt_g);
+                            Mat top_blob_tm_g = top_blob_tm.channel(g);
+                            requantize_ops[g]->forward(top_blob_tm_g, top_blob_g, opt_g);
                         }
                     }
 #if DEBUG_FEATURE

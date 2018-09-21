@@ -183,7 +183,6 @@ enum
     BORDER_REPLICATE = 1,
 };
 void copy_make_border(const Mat& src, Mat& dst, int top, int bottom, int left, int right, int type, float v, Allocator* allocator = 0, int num_threads = 1);
-void copy_make_border_s8(const Mat& src, Mat& dst, int top, int bottom, int left, int right, int type, float v, Allocator* allocator = 0, int num_threads = 1);
 void copy_cut_border(const Mat& src, Mat& dst, int top, int bottom, int left, int right, Allocator* allocator = 0, int num_threads = 1);
 void resize_bilinear(const Mat& src, Mat& dst, int w, int h, Allocator* allocator = 0, int num_threads = 1);
 

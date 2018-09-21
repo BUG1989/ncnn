@@ -28,8 +28,7 @@ public:
 
     virtual int load_model(const ModelBin& mb);
 
-    virtual int forward_inplace(Mat& bottom_top_blob, const Option& opt) const;
-    //virtual int forward(Mat& bottom_blob, Mat& top_blob, const Option& opt) const;
+    virtual int forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) const;
 
 public:
     float scale_in;	// bottom_blob_scale * weight_scale
