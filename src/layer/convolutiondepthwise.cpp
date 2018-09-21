@@ -38,10 +38,7 @@ ConvolutionDepthWise::~ConvolutionDepthWise()
 
     dequantize_ops.clear();
 
-    for (int i=0; i<(int)requantize_ops.size(); i++)
-        delete requantize_ops[i];
-
-    requantize_ops.clear();    
+    delete requantize;
 }
 
 int ConvolutionDepthWise::load_param(const ParamDict& pd)
@@ -126,11 +123,6 @@ int ConvolutionDepthWise::load_model(const ModelBin& mb)
 
     dequantize_ops.clear();
 
-    for (int i=0; i<(int)requantize_ops.size(); i++)
-        delete requantize_ops[i];
-
-    requantize_ops.clear();    
-
     bool weight_data_is_int8 = (weight_data.elemsize == (size_t)1u);
     bool weight_data_is_float32 = (weight_data.elemsize == (size_t)4u);
 
@@ -175,7 +167,6 @@ int ConvolutionDepthWise::load_model(const ModelBin& mb)
     {
         quantize_ops.resize(group);
         dequantize_ops.resize(group);
-        requantize_ops.resize(group);
 
         for (int g=0; g<group; g++)
         {
@@ -206,26 +197,24 @@ int ConvolutionDepthWise::load_model(const ModelBin& mb)
             dequantize_ops[g]->load_model(ModelBinFromMatArray(weights));
         }
 
-        for (int g=0; g<group; g++)
+        requantize = ncnn::create_layer(ncnn::LayerType::Requantize);
         {
-            requantize_ops[g] = ncnn::create_layer(ncnn::LayerType::Requantize);
-
-            float scale_in = bottom_blob_int8_scales[g] * weight_data_int8_scales[g];
-            float scale_out = top_blob_int8_scales[g] / (bottom_blob_int8_scales[g] * weight_data_int8_scales[g]);            
+            float scale_in = bottom_blob_int8_scales[0] * weight_data_int8_scales[0];
+            float scale_out = top_blob_int8_scales[0] / (bottom_blob_int8_scales[0] * weight_data_int8_scales[0]);
 
             ncnn::ParamDict pd;
-            pd.set(0, scale_in);// scale
-            pd.set(1, scale_out);
+            pd.set(0, scale_in);// scale_in
+            pd.set(1, scale_out);// requantize scale
             pd.set(2, bias_term);// bias_term
-            pd.set(3, 1);// bias_data_size
+            pd.set(3, num_output);// bias_data_size
 
-            requantize_ops[g]->load_param(pd);
+            requantize->load_param(pd);
 
             ncnn::Mat weights[1];
-            weights[0] = bias_data.range(g, 1);
+            weights[0] = bias_data;
 
-            requantize_ops[g]->load_model(ModelBinFromMatArray(weights));
-        }        
+            requantize->load_model(ModelBinFromMatArray(weights));                
+        }      
     }
 
     return 0;
@@ -415,18 +404,14 @@ int ConvolutionDepthWise::forward(const Mat& bottom_blob, Mat& top_blob, const O
 
                         outptr += outw;
                     }
-
-                     // requantize
-                    {
-                        ncnn::Option opt_g = opt;
-                        opt_g.num_threads = 1;
-                        opt_g.blob_allocator = top_blob.allocator;
-
-                        Mat top_blob_g = top_blob.channel_range(g, 1);
-                        Mat top_blob_tm_g = top_blob_tm.channel_range(g, 1);
-                        requantize_ops[g]->forward(top_blob_tm_g, top_blob_g, opt_g);                    
-                    }
                 }
+                // requantize
+                {
+                    ncnn::Option opt_g = opt;
+                    opt_g.blob_allocator = top_blob.allocator;
+
+                    requantize->forward(top_blob_tm, top_blob, opt_g);                   
+                }                
             }
         }
         else
@@ -554,17 +539,10 @@ int ConvolutionDepthWise::forward(const Mat& bottom_blob, Mat& top_blob, const O
 
                 // requantize
                 {
-                    #pragma omp parallel for num_threads(opt.num_threads)
-                    for (int g=0; g<group; g++)
-                    {
-                        ncnn::Option opt_g = opt;
-                        opt_g.num_threads = 1;
-                        opt_g.blob_allocator = top_blob.allocator;
+                    ncnn::Option opt_g = opt;
+                    opt_g.blob_allocator = top_blob.allocator;
 
-                        Mat top_blob_g = top_blob.channel_range(num_output_g * g, num_output_g);
-                        Mat top_blob_tm_g = top_blob_tm.channel_range(num_output_g * g, num_output_g);
-                        requantize_ops[g]->forward(top_blob_tm_g, top_blob_g, opt_g);
-                    }
+                    requantize->forward(top_blob_tm, top_blob, opt_g);                   
                 }
             }            
 

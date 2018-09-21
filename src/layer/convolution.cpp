@@ -442,6 +442,10 @@ int Convolution::forward(const Mat& bottom_blob, Mat& top_blob, const Option& op
         }
     }
 
+#if DEBUG_FEATURE
+    extract_feature_in_f32(0, this->name.c_str(), bottom_blob, top_blob);
+    extract_feature_out_f32(0, this->name.c_str(), bottom_blob, top_blob);
+#endif    
     return 0;
 }
 

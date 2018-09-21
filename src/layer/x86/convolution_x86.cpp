@@ -322,8 +322,7 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
 
     if (use_int8_inference)
     {   
-        if (requantize_term == 2)
-        // dequantize, reverse scale inplace
+        if (requantize_term == 2) // dequantize, reverse scale inplace
         {
             top_blob.create(outw, outh, num_output, (size_t)4u, opt.blob_allocator);
             if (top_blob.empty())
@@ -365,6 +364,11 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     }
 
     conv(bottom_blob_bordered, top_blob, weight_data, bias_data, opt);
+
+#if DEBUG_FEATURE
+    extract_feature_in_f32(0, this->name.c_str(), bottom_blob, top_blob);
+    extract_feature_out_f32(0, this->name.c_str(), bottom_blob, top_blob);
+#endif
 
     return 0;
 }

@@ -12,35 +12,19 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef LAYER_REQUANTIZE_H
-#define LAYER_REQUANTIZE_H
+#ifndef LAYER_REQUANTIZE_ARM_H
+#define LAYER_REQUANTIZE_ARM_H
 
-#include "layer.h"
+#include "requantize.h"
 
 namespace ncnn {
 
-class Requantize : public Layer
+class Requantize_arm : public Requantize
 {
 public:
-    Requantize();
-
-    virtual int load_param(const ParamDict& pd);
-
-    virtual int load_model(const ModelBin& mb);
-
     virtual int forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) const;
-
-public:
-    float scale_in;	// bottom_blob_scale * weight_scale
-	float scale_out;// top_blob_scale / (bottom_blob_scale * weight_scale)
-    int bias_term;
-    int bias_data_size;
-
-    bool fusion_relu;
-
-    Mat bias_data;
 };
 
 } // namespace ncnn
 
-#endif // LAYER_REQUANTIZE_H
+#endif // LAYER_REQUANTIZE_ARM_H

@@ -245,17 +245,21 @@ int ConvolutionDepthWise_x86::forward(const Mat& bottom_blob, Mat& top_blob, con
                         {
                             convdw3x3s2_int8_sse(bottom_blob_bordered, top_blob_tm, weight_data, opt);
                         }                        
-                        #pragma omp parallel for num_threads(opt.num_threads)
-                        for (int g=0; g<group; g++)
-                        {
-                            ncnn::Option opt_g = opt;
-                            opt_g.num_threads = 1;
-                            opt_g.blob_allocator = top_blob.allocator;
+                        // #pragma omp parallel for num_threads(opt.num_threads)
+                        // for (int g=0; g<group; g++)
+                        // {
+                        //     ncnn::Option opt_g = opt;
+                        //     opt_g.num_threads = 1;
+                        //     opt_g.blob_allocator = top_blob.allocator;
 
-                            Mat top_blob_g = top_blob.channel(g);
-                            Mat top_blob_tm_g = top_blob_tm.channel(g);
-                            requantize_ops[g]->forward(top_blob_tm_g, top_blob_g, opt_g);
-                        }
+                        //     Mat top_blob_g = top_blob.channel(g);
+                        //     Mat top_blob_tm_g = top_blob_tm.channel(g);
+                        //     requantize_ops[g]->forward(top_blob_tm_g, top_blob_g, opt_g);
+                        // }
+                        ncnn::Option opt_g = opt;
+                        opt_g.blob_allocator = top_blob.allocator;
+
+                        requantize->forward(top_blob_tm, top_blob, opt_g);                         
                     }
 #if DEBUG_FEATURE
                     extract_feature_in_f32(0, this->name.c_str(), bottom_blob, top_blob);
@@ -273,13 +277,16 @@ int ConvolutionDepthWise_x86::forward(const Mat& bottom_blob, Mat& top_blob, con
                 if (stride_w == 1 && stride_h == 1)
                 {
                     convdw3x3s1_sse(bottom_blob_bordered, top_blob, weight_data, bias_data, opt);
-                    return 0;
                 }
                 else if (stride_w == 2 && stride_h == 2)
                 {
                     convdw3x3s2_sse(bottom_blob_bordered, top_blob, weight_data, bias_data, opt);
-                    return 0;
                 }
+#if DEBUG_FEATURE
+                extract_feature_in_f32(0, this->name.c_str(), bottom_blob, top_blob);
+                extract_feature_out_f32(0, this->name.c_str(), bottom_blob, top_blob);
+#endif                  
+                return 0;
             }
         }
 

@@ -358,7 +358,7 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     size_t elemsize = bottom_blob.elemsize;
 
     Mat bottom_blob_unbordered = bottom_blob;
-    if (use_int8_inference && elemsize != 1)
+    if (use_int8_inference && elemsize != 1 && requantize_term == 1)
     {
         Mat bottom_blob_int8;
         bottom_blob_int8.create(w, h, channels, (size_t)1u, opt.workspace_allocator);
@@ -410,25 +410,58 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
 
     if (use_int8_inference)
     {
-#if __ARM_NEON
-#if !__aarch64__
-        if (kernel_w == 3 && kernel_h == 3 && dilation_w == 1 && dilation_h == 1 && stride_w == 1 && stride_h == 1)
+        if (requantize_term == 2) // dequantize, reverse scale inplace
         {
-        conv3x3s1_packed_int8_neon(bottom_blob_bordered, top_blob, weight_3x3s1_int8_data, opt);
-        }
-        else
-#endif // !__aarch64__
-#endif // __ARM_NEON
-        {
-            conv_int8(bottom_blob_bordered, top_blob, weight_data, opt);
-        }
+            top_blob.create(outw, outh, num_output, (size_t)4u, opt.blob_allocator);
+            if (top_blob.empty())
+                return -100;  
 
-        // dequantize, reverse scale inplace
-        {
+    #if __ARM_NEON
+    #if !__aarch64__
+            if (kernel_w == 3 && kernel_h == 3 && dilation_w == 1 && dilation_h == 1 && stride_w == 1 && stride_h == 1)
+            {
+                conv3x3s1_packed_int8_neon(bottom_blob_bordered, top_blob, weight_3x3s1_int8_data, opt);
+            }
+            else
+    #endif // !__aarch64__
+    #endif // __ARM_NEON
+            {
+                conv_int8(bottom_blob_bordered, top_blob, weight_data, opt);
+            }
+
             ncnn::Option opt_g = opt;
             opt_g.blob_allocator = top_blob.allocator;
 
             dequantize->forward_inplace(top_blob, opt_g);
+        }
+        else // requantize
+        {
+            Mat top_blob_tm;
+            top_blob_tm.create(outw, outh, num_output, (size_t)4u, opt.workspace_allocator);
+            if (top_blob_tm.empty())
+                return -100;              
+
+            top_blob.create(outw, outh, num_output, (size_t)1u, opt.blob_allocator);
+            if (top_blob.empty())
+                return -100;    
+
+    #if __ARM_NEON
+    #if !__aarch64__
+            if (kernel_w == 3 && kernel_h == 3 && dilation_w == 1 && dilation_h == 1 && stride_w == 1 && stride_h == 1)
+            {
+                conv3x3s1_packed_int8_neon(bottom_blob_bordered, top_blob_tm, weight_3x3s1_int8_data, opt);
+            }
+            else
+    #endif // !__aarch64__
+    #endif // __ARM_NEON
+            {
+                conv_int8(bottom_blob_bordered, top_blob_tm, weight_data, opt);
+            }
+
+            ncnn::Option opt_g = opt;
+            opt_g.blob_allocator = top_blob.allocator;
+
+            requantize->forward(top_blob_tm, top_blob, opt_g);         
         }
 #if DEBUG_FEATURE
         extract_feature_in_f32(0, this->name.c_str(), bottom_blob, top_blob);

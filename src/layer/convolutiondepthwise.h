@@ -62,7 +62,7 @@ public:
 
     std::vector<ncnn::Layer*> quantize_ops;
     std::vector<ncnn::Layer*> dequantize_ops;
-    std::vector<ncnn::Layer*> requantize_ops;
+    ncnn::Layer* requantize;
 };
 
 } // namespace ncnn
