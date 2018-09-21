@@ -24,6 +24,8 @@ ConvolutionDepthWise::ConvolutionDepthWise()
 {
     one_blob_only = true;
     support_inplace = false;
+
+    requantize = 0;
 }
 
 ConvolutionDepthWise::~ConvolutionDepthWise()
@@ -122,6 +124,9 @@ int ConvolutionDepthWise::load_model(const ModelBin& mb)
         delete dequantize_ops[i];
 
     dequantize_ops.clear();
+
+
+    delete requantize;
 
     bool weight_data_is_int8 = (weight_data.elemsize == (size_t)1u);
     bool weight_data_is_float32 = (weight_data.elemsize == (size_t)4u);
