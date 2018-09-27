@@ -179,7 +179,6 @@ static void conv1x1s1_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
                 );
 
                 asm volatile(
-                    "0:                            \n"
                     //ld r0-r7
                     "pld        [%5, #64]          \n"
                     "vld1.s8    {d0}, [%5 :64]!    \n" //r0
@@ -203,40 +202,49 @@ static void conv1x1s1_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
                     "vld1.s8    {d6}, [%11 :64]!   \n" //r6
 
                     "pld        [%12, #64]         \n"
-                    "vld1.s8    {d7}, [%12 :64]!   \n" //r7
+                    "vld1.s8    {d7}, [%12 :64]!   \n" //r7                    
+                    "0:                            \n"
                     //###########################################
                     //load inch kernel_0 k0-k7
                     "vdup.s8    d8, d18[0]          \n"
                     "vdup.s8    d9, d18[1]          \n"
                     "vdup.s8    d10, d18[2]         \n"
                     "vdup.s8    d11, d18[3]         \n"
-                    "vdup.s8    d12, d18[4]         \n"
-                    "vdup.s8    d13, d18[5]         \n"
-                    "vdup.s8    d14, d18[6]         \n"
-                    "vdup.s8    d15, d18[7]         \n"
 
                     //mla
                     "vmull.s8   q8, d0, d8          \n"
                     "vmlal.s8   q8, d1, d9          \n"
                     "vmlal.s8   q8, d2, d10         \n"
+
+                    "vdup.s8    d12, d18[4]         \n"
+                    "vdup.s8    d13, d18[5]         \n"
+                    "vdup.s8    d14, d18[6]         \n"
+                    "vdup.s8    d15, d18[7]         \n"                    
+
+                    //"pld        [%1, #128]          \n"
+                    "vld1.32    {d20-d23}, [%1:128] \n" //outptr0_s32
+
                     "vmlal.s8   q8, d3, d11         \n"
                     "vmlal.s8   q8, d4, d12         \n"
                     "vmlal.s8   q8, d5, d13         \n"
+
+                    "vdup.s8    d8, d19[0]          \n"
+                    "vdup.s8    d9, d19[1]          \n"
+
                     "vmlal.s8   q8, d6, d14         \n"
                     "vmlal.s8   q8, d7, d15         \n"
 
                     //outptr0_s32
-                    "pld        [%1, #256]          \n"
-                    "vld1.32    {d20-d23}, [%1:128] \n" //outptr0_s32
+
                     "vaddw.s16   q10, q10, d16      \n"
                     "vaddw.s16   q11, q11, d17      \n"
+
+                    "vdup.s8    d10, d19[2]         \n"
+                    "vdup.s8    d11, d19[3]         \n"
+
                     "vst1.32    {d20-d23}, [%1:128]!\n"
                     //###########################################
                     //load inch kernel_1 k0-k7
-                    "vdup.s8    d8, d19[0]          \n"
-                    "vdup.s8    d9, d19[1]          \n"
-                    "vdup.s8    d10, d19[2]         \n"
-                    "vdup.s8    d11, d19[3]         \n"
                     "vdup.s8    d12, d19[4]         \n"
                     "vdup.s8    d13, d19[5]         \n"
                     "vdup.s8    d14, d19[6]         \n"
@@ -246,26 +254,33 @@ static void conv1x1s1_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
                     "vmull.s8   q8, d0, d8          \n"
                     "vmlal.s8   q8, d1, d9          \n"
                     "vmlal.s8   q8, d2, d10         \n"
+
+                    //"pld        [%2, #128]          \n"
+                    "vld1.32    {d20-d23}, [%2:128] \n" //outptr1_s32
+
                     "vmlal.s8   q8, d3, d11         \n"
                     "vmlal.s8   q8, d4, d12         \n"
                     "vmlal.s8   q8, d5, d13         \n"
+
+                    "vdup.s8    d8, d24[0]          \n"
+                    "vdup.s8    d9, d24[1]          \n"
+
                     "vmlal.s8   q8, d6, d14         \n"
                     "vmlal.s8   q8, d7, d15         \n"
 
+                    "vdup.s8    d10, d24[2]         \n"
+                    "vdup.s8    d11, d24[3]         \n"                    
+
                     //outptr1_s32
-                    "pld        [%2, #256]          \n"
-                    "vld1.32    {d20-d23}, [%2:128] \n" //outptr1_s32
                     "vaddw.s16   q10, q10, d16      \n"
                     "vaddw.s16   q11, q11, d17      \n"
+
+                    "vdup.s8    d12, d24[4]         \n"
+                    "vdup.s8    d13, d24[5]         \n"
+
                     "vst1.32    {d20-d23}, [%2:128]!\n"
                     //############################################
                     //load inch kernel_2 k0-k7
-                    "vdup.s8    d8, d24[0]          \n"
-                    "vdup.s8    d9, d24[1]          \n"
-                    "vdup.s8    d10, d24[2]         \n"
-                    "vdup.s8    d11, d24[3]         \n"
-                    "vdup.s8    d12, d24[4]         \n"
-                    "vdup.s8    d13, d24[5]         \n"
                     "vdup.s8    d14, d24[6]         \n"
                     "vdup.s8    d15, d24[7]         \n"
 
@@ -273,49 +288,91 @@ static void conv1x1s1_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
                     "vmull.s8   q8, d0, d8          \n"
                     "vmlal.s8   q8, d1, d9          \n"
                     "vmlal.s8   q8, d2, d10         \n"
+
+                    //"pld        [%3, #128]          \n"
+                    "vld1.32    {d20-d23}, [%3:128] \n" //outptr2_s32
+
                     "vmlal.s8   q8, d3, d11         \n"
                     "vmlal.s8   q8, d4, d12         \n"
                     "vmlal.s8   q8, d5, d13         \n"
+
+                    "vdup.s8    d8, d25[0]          \n"
+                    "vdup.s8    d9, d25[1]          \n"
+
                     "vmlal.s8   q8, d6, d14         \n"
                     "vmlal.s8   q8, d7, d15         \n"
 
+                    "vdup.s8    d10, d25[2]         \n"
+                    "vdup.s8    d11, d25[3]         \n"
+
                     //outptr2_s32
-                    "pld        [%3, #256]          \n"
-                    "vld1.32    {d20-d23}, [%3:128] \n" //outptr2_s32
+
                     "vaddw.s16   q10, q10, d16      \n"
                     "vaddw.s16   q11, q11, d17      \n"
+
+                    "vdup.s8    d12, d25[4]         \n"
+                    "vdup.s8    d13, d25[5]         \n"
+
                     "vst1.32    {d20-d23}, [%3:128]!\n"
                     //#############################################
                     //load inch kernel_3 k0-k7
-                    "vdup.s8    d8, d25[0]          \n"
-                    "vdup.s8    d9, d25[1]          \n"
-                    "vdup.s8    d10, d25[2]         \n"
-                    "vdup.s8    d11, d25[3]         \n"
-                    "vdup.s8    d12, d25[4]         \n"
-                    "vdup.s8    d13, d25[5]         \n"
                     "vdup.s8    d14, d25[6]         \n"
                     "vdup.s8    d15, d25[7]         \n"
 
                     //mla
                     "vmull.s8   q8, d0, d8          \n"
                     "vmlal.s8   q8, d1, d9          \n"
+                    
+                    //"pld        [%4, #128]          \n"
+                    "vld1.32    {d20-d23}, [%4:128] \n" //outptr3_s32
+
                     "vmlal.s8   q8, d2, d10         \n"
+                    "pld        [%5, #64]          \n"
+                    "vld1.s8    {d0}, [%5 :64]!    \n" //r0
+
                     "vmlal.s8   q8, d3, d11         \n"
+                    "pld        [%6, #64]          \n"
+                    "vld1.s8    {d1}, [%6 :64]!    \n" //r1
+
                     "vmlal.s8   q8, d4, d12         \n"
+                    "pld        [%7, #64]          \n"
+                    "vld1.s8    {d2}, [%7 :64]!    \n" //r2
+
                     "vmlal.s8   q8, d5, d13         \n"
+                    "pld        [%8, #64]          \n"
+                    "vld1.s8    {d3}, [%8 :64]!    \n" //r3
+
                     "vmlal.s8   q8, d6, d14         \n"
+                    "pld        [%9, #64]          \n"
+                    "vld1.s8    {d4}, [%9 :64]!    \n" //r4
+
                     "vmlal.s8   q8, d7, d15         \n"
+                    "pld        [%10, #64]         \n"
+                    "vld1.s8    {d5}, [%10 :64]!   \n" //r5                    
 
                     //outptr3_s32
-                    "pld        [%4, #256]          \n"
-                    "vld1.32    {d20-d23}, [%4:128] \n" //outptr3_s32
                     "vaddw.s16   q10, q10, d16      \n"
                     "vaddw.s16   q11, q11, d17      \n"
+
+                    //ld r0-r7
+                    "pld        [%11, #64]         \n"
+                    "vld1.s8    {d6}, [%11 :64]!   \n" //r6
+                    "pld        [%12, #64]         \n"
+                    "vld1.s8    {d7}, [%12 :64]!   \n" //r7
+
                     "vst1.32    {d20-d23}, [%4:128]!\n"
 
                     //next
                     "subs       %0, #1              \n"
                     "bne        0b                  \n"
+                    "sub        %5, #8              \n"
+                    "sub        %6, #8              \n"
+                    "sub        %7, #8              \n"
+                    "sub        %8, #8              \n"
+                    "sub        %9, #8              \n"
+                    "sub        %10, #8             \n"
+                    "sub        %11, #8             \n"
+                    "sub        %12, #8             \n"
                     : "=r"(nn),          // %0
                       "=r"(outptr0),     // %1
                       "=r"(outptr1),     // %2
@@ -343,7 +400,7 @@ static void conv1x1s1_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
                       "11"(r6),
                       "12"(r7)
                     : "cc", "memory", "q0", "q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8", "q10", "q11", "q13", "q14", "q15"
-                );
+                );             
             }
 
             for (; remain>0; remain--)
@@ -759,66 +816,74 @@ static void conv1x1s1_neon_s8_left4(const Mat& bottom_blob, Mat& top_blob, const
             );
 
             if (nn > 0)
-            {
+            {                
                 asm volatile(
-                    "0:                            \n"
                     //ld r0-r7
                     "pld        [%5, #64]          \n"
-                    "vld1.s8    {d0}, [%5 :64]!    \n"  //r0
+                    "vld1.s8    {d0}, [%5 :64]!    \n" //r0
 
                     "pld        [%6, #64]          \n"
-                    "vld1.s8    {d1}, [%6 :64]!    \n"  //r1
+                    "vld1.s8    {d1}, [%6 :64]!    \n" //r1
 
                     "pld        [%7, #64]          \n"
-                    "vld1.s8    {d2}, [%7 :64]!    \n"  //r2
+                    "vld1.s8    {d2}, [%7 :64]!    \n" //r2
 
                     "pld        [%8, #64]          \n"
-                    "vld1.s8    {d3}, [%8 :64]!    \n"  //r3
+                    "vld1.s8    {d3}, [%8 :64]!    \n" //r3
 
                     "pld        [%9, #64]          \n"
-                    "vld1.s8    {d4}, [%9 :64]!    \n"  //r4
+                    "vld1.s8    {d4}, [%9 :64]!    \n" //r4
 
                     "pld        [%10, #64]         \n"
-                    "vld1.s8    {d5}, [%10 :64]!   \n"  //r5
+                    "vld1.s8    {d5}, [%10 :64]!   \n" //r5
 
                     "pld        [%11, #64]         \n"
-                    "vld1.s8    {d6}, [%11 :64]!   \n"  //r6
+                    "vld1.s8    {d6}, [%11 :64]!   \n" //r6
 
                     "pld        [%12, #64]         \n"
-                    "vld1.s8    {d7}, [%12 :64]!   \n"  //r7
+                    "vld1.s8    {d7}, [%12 :64]!   \n" //r7                    
+                    "0:                            \n"
                     //###########################################
                     //load inch kernel_0 k0-k7
                     "vdup.s8    d8, d18[0]          \n"
                     "vdup.s8    d9, d18[1]          \n"
                     "vdup.s8    d10, d18[2]         \n"
                     "vdup.s8    d11, d18[3]         \n"
-                    "vdup.s8    d12, d18[4]         \n"
-                    "vdup.s8    d13, d18[5]         \n"
-                    "vdup.s8    d14, d18[6]         \n"
-                    "vdup.s8    d15, d18[7]         \n"
 
                     //mla
                     "vmull.s8   q8, d0, d8          \n"
                     "vmlal.s8   q8, d1, d9          \n"
                     "vmlal.s8   q8, d2, d10         \n"
+
+                    "vdup.s8    d12, d18[4]         \n"
+                    "vdup.s8    d13, d18[5]         \n"
+                    "vdup.s8    d14, d18[6]         \n"
+                    "vdup.s8    d15, d18[7]         \n"                    
+
+                    //"pld        [%1, #128]          \n"
+                    "vld1.32    {d20-d23}, [%1:128] \n" //outptr0_s32
+
                     "vmlal.s8   q8, d3, d11         \n"
                     "vmlal.s8   q8, d4, d12         \n"
                     "vmlal.s8   q8, d5, d13         \n"
+
+                    "vdup.s8    d8, d19[0]          \n"
+                    "vdup.s8    d9, d19[1]          \n"
+
                     "vmlal.s8   q8, d6, d14         \n"
                     "vmlal.s8   q8, d7, d15         \n"
 
                     //outptr0_s32
-                    "pld        [%1, #256]          \n"
-                    "vld1.32    {d20-d23}, [%1:128] \n" //outptr0_s32
+
                     "vaddw.s16   q10, q10, d16      \n"
                     "vaddw.s16   q11, q11, d17      \n"
+
+                    "vdup.s8    d10, d19[2]         \n"
+                    "vdup.s8    d11, d19[3]         \n"
+
                     "vst1.32    {d20-d23}, [%1:128]!\n"
                     //###########################################
                     //load inch kernel_1 k0-k7
-                    "vdup.s8    d8, d19[0]          \n"
-                    "vdup.s8    d9, d19[1]          \n"
-                    "vdup.s8    d10, d19[2]         \n"
-                    "vdup.s8    d11, d19[3]         \n"
                     "vdup.s8    d12, d19[4]         \n"
                     "vdup.s8    d13, d19[5]         \n"
                     "vdup.s8    d14, d19[6]         \n"
@@ -828,26 +893,33 @@ static void conv1x1s1_neon_s8_left4(const Mat& bottom_blob, Mat& top_blob, const
                     "vmull.s8   q8, d0, d8          \n"
                     "vmlal.s8   q8, d1, d9          \n"
                     "vmlal.s8   q8, d2, d10         \n"
+
+                    //"pld        [%2, #128]          \n"
+                    "vld1.32    {d20-d23}, [%2:128] \n" //outptr1_s32
+
                     "vmlal.s8   q8, d3, d11         \n"
                     "vmlal.s8   q8, d4, d12         \n"
                     "vmlal.s8   q8, d5, d13         \n"
+
+                    "vdup.s8    d8, d24[0]          \n"
+                    "vdup.s8    d9, d24[1]          \n"
+
                     "vmlal.s8   q8, d6, d14         \n"
                     "vmlal.s8   q8, d7, d15         \n"
 
+                    "vdup.s8    d10, d24[2]         \n"
+                    "vdup.s8    d11, d24[3]         \n"                    
+
                     //outptr1_s32
-                    "pld        [%2, #256]          \n"
-                    "vld1.32    {d20-d23}, [%2:128] \n" //outptr1_s32
                     "vaddw.s16   q10, q10, d16      \n"
                     "vaddw.s16   q11, q11, d17      \n"
+
+                    "vdup.s8    d12, d24[4]         \n"
+                    "vdup.s8    d13, d24[5]         \n"
+
                     "vst1.32    {d20-d23}, [%2:128]!\n"
                     //############################################
                     //load inch kernel_2 k0-k7
-                    "vdup.s8    d8, d24[0]          \n"
-                    "vdup.s8    d9, d24[1]          \n"
-                    "vdup.s8    d10, d24[2]         \n"
-                    "vdup.s8    d11, d24[3]         \n"
-                    "vdup.s8    d12, d24[4]         \n"
-                    "vdup.s8    d13, d24[5]         \n"
                     "vdup.s8    d14, d24[6]         \n"
                     "vdup.s8    d15, d24[7]         \n"
 
@@ -855,49 +927,92 @@ static void conv1x1s1_neon_s8_left4(const Mat& bottom_blob, Mat& top_blob, const
                     "vmull.s8   q8, d0, d8          \n"
                     "vmlal.s8   q8, d1, d9          \n"
                     "vmlal.s8   q8, d2, d10         \n"
+
+                    //"pld        [%3, #128]          \n"
+                    "vld1.32    {d20-d23}, [%3:128] \n" //outptr2_s32
+
                     "vmlal.s8   q8, d3, d11         \n"
                     "vmlal.s8   q8, d4, d12         \n"
                     "vmlal.s8   q8, d5, d13         \n"
+
+                    "vdup.s8    d8, d25[0]          \n"
+                    "vdup.s8    d9, d25[1]          \n"
+
                     "vmlal.s8   q8, d6, d14         \n"
                     "vmlal.s8   q8, d7, d15         \n"
 
+                    "vdup.s8    d10, d25[2]         \n"
+                    "vdup.s8    d11, d25[3]         \n"
+
                     //outptr2_s32
-                    "pld        [%3, #256]          \n"
-                    "vld1.32    {d20-d23}, [%3:128] \n" //outptr2_s32
+
                     "vaddw.s16   q10, q10, d16      \n"
                     "vaddw.s16   q11, q11, d17      \n"
+
+                    "vdup.s8    d12, d25[4]         \n"
+                    "vdup.s8    d13, d25[5]         \n"
+
                     "vst1.32    {d20-d23}, [%3:128]!\n"
                     //#############################################
                     //load inch kernel_3 k0-k7
-                    "vdup.s8    d8, d25[0]          \n"
-                    "vdup.s8    d9, d25[1]          \n"
-                    "vdup.s8    d10, d25[2]         \n"
-                    "vdup.s8    d11, d25[3]         \n"
-                    "vdup.s8    d12, d25[4]         \n"
-                    "vdup.s8    d13, d25[5]         \n"
                     "vdup.s8    d14, d25[6]         \n"
                     "vdup.s8    d15, d25[7]         \n"
 
                     //mla
                     "vmull.s8   q8, d0, d8          \n"
                     "vmlal.s8   q8, d1, d9          \n"
+                    
+                    //"pld        [%4, #128]          \n"
+                    "vld1.32    {d20-d23}, [%4:128] \n" //outptr3_s32
+
                     "vmlal.s8   q8, d2, d10         \n"
+                    "pld        [%5, #64]          \n"
+                    "vld1.s8    {d0}, [%5 :64]!    \n" //r0
+
                     "vmlal.s8   q8, d3, d11         \n"
+                    "pld        [%6, #64]          \n"
+                    "vld1.s8    {d1}, [%6 :64]!    \n" //r1
+
                     "vmlal.s8   q8, d4, d12         \n"
+                    "pld        [%7, #64]          \n"
+                    "vld1.s8    {d2}, [%7 :64]!    \n" //r2
+
                     "vmlal.s8   q8, d5, d13         \n"
+                    "pld        [%8, #64]          \n"
+                    "vld1.s8    {d3}, [%8 :64]!    \n" //r3
+
                     "vmlal.s8   q8, d6, d14         \n"
+                    "pld        [%9, #64]          \n"
+                    "vld1.s8    {d4}, [%9 :64]!    \n" //r4
+
                     "vmlal.s8   q8, d7, d15         \n"
+                    "pld        [%10, #64]         \n"
+                    "vld1.s8    {d5}, [%10 :64]!   \n" //r5                    
 
                     //outptr3_s32
-                    "pld        [%4, #256]          \n"
-                    "vld1.32    {d20-d23}, [%4:128] \n" //outptr3_s32
+
                     "vaddw.s16   q10, q10, d16      \n"
                     "vaddw.s16   q11, q11, d17      \n"
+
+                    //ld r0-r7
+                    "pld        [%11, #64]         \n"
+                    "vld1.s8    {d6}, [%11 :64]!   \n" //r6
+                    "pld        [%12, #64]         \n"
+                    "vld1.s8    {d7}, [%12 :64]!   \n" //r7
+
                     "vst1.32    {d20-d23}, [%4:128]!\n"
 
                     //next
                     "subs       %0, #1              \n"
                     "bne        0b                  \n"
+                    "sub        %5, #8              \n"
+                    "sub        %6, #8              \n"
+                    "sub        %7, #8              \n"
+                    "sub        %8, #8              \n"
+                    "sub        %9, #8              \n"
+                    "sub        %10, #8             \n"
+                    "sub        %11, #8             \n"
+                    "sub        %12, #8             \n"
                     : "=r"(nn),          // %0
                       "=r"(outptr0),     // %1
                       "=r"(outptr1),     // %2
@@ -924,177 +1039,176 @@ static void conv1x1s1_neon_s8_left4(const Mat& bottom_blob, Mat& top_blob, const
                       "10"(r5),
                       "11"(r6),
                       "12"(r7)
-                    : "cc", "memory", "q0", "q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8", "q10", "q11"
-                );
+                    : "cc", "memory", "q0", "q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8", "q10", "q11", "q13", "q14", "q15"
+                );     
             }
 
             asm volatile(
-                    "0:                            \n"
-                    //ld r0-r7
-                    "pld        [%5, #64]          \n"
-                    "vld1.s8    {d0}, [%5 :64]     \n"  //r0
+                //ld r0-r7
+                "pld        [%5, #64]          \n"
+                "vld1.s8    {d0}, [%5 :64]     \n"  //r0
 
-                    "pld        [%6, #64]          \n"
-                    "vld1.s8    {d1}, [%6 :64]     \n"  //r1
+                "pld        [%6, #64]          \n"
+                "vld1.s8    {d1}, [%6 :64]     \n"  //r1
 
-                    "pld        [%7, #64]          \n"
-                    "vld1.s8    {d2}, [%7 :64]     \n"  //r2
+                "pld        [%7, #64]          \n"
+                "vld1.s8    {d2}, [%7 :64]     \n"  //r2
 
-                    "pld        [%8, #64]          \n"
-                    "vld1.s8    {d3}, [%8 :64]     \n"  //r3
+                "pld        [%8, #64]          \n"
+                "vld1.s8    {d3}, [%8 :64]     \n"  //r3
 
-                    "pld        [%9, #64]          \n"
-                    "vld1.s8    {d4}, [%9 :64]     \n"  //r4
+                "pld        [%9, #64]          \n"
+                "vld1.s8    {d4}, [%9 :64]     \n"  //r4
 
-                    "pld        [%10, #64]         \n"
-                    "vld1.s8    {d5}, [%10 :64]    \n"  //r5
+                "pld        [%10, #64]         \n"
+                "vld1.s8    {d5}, [%10 :64]    \n"  //r5
 
-                    "pld        [%11, #64]         \n"
-                    "vld1.s8    {d6}, [%11 :64]    \n"  //r6
+                "pld        [%11, #64]         \n"
+                "vld1.s8    {d6}, [%11 :64]    \n"  //r6
 
-                    "pld        [%12, #64]         \n"
-                    "vld1.s8    {d7}, [%12 :64]    \n"  //r7
+                "pld        [%12, #64]         \n"
+                "vld1.s8    {d7}, [%12 :64]    \n"  //r7
 
-                    "add        %5, #4             \n"
-                    "add        %6, #4             \n"
-                    "add        %7, #4             \n"
-                    "add        %8, #4             \n"
-                    "add        %9, #4             \n"
-                    "add        %10, #4            \n"
-                    "add        %11, #4            \n"
-                    "add        %12, #4            \n"
-                    //###########################################
-                    //load inch kernel_0 k0-k7
-                    "vdup.s8    d8, d18[0]          \n"
-                    "vdup.s8    d9, d18[1]          \n"
-                    "vdup.s8    d10, d18[2]         \n"
-                    "vdup.s8    d11, d18[3]         \n"
-                    "vdup.s8    d12, d18[4]         \n"
-                    "vdup.s8    d13, d18[5]         \n"
-                    "vdup.s8    d14, d18[6]         \n"
-                    "vdup.s8    d15, d18[7]         \n"
+                "add        %5, #4             \n"
+                "add        %6, #4             \n"
+                "add        %7, #4             \n"
+                "add        %8, #4             \n"
+                "add        %9, #4             \n"
+                "add        %10, #4            \n"
+                "add        %11, #4            \n"
+                "add        %12, #4            \n"
+                //###########################################
+                //load inch kernel_0 k0-k7
+                "vdup.s8    d8, d18[0]          \n"
+                "vdup.s8    d9, d18[1]          \n"
+                "vdup.s8    d10, d18[2]         \n"
+                "vdup.s8    d11, d18[3]         \n"
+                "vdup.s8    d12, d18[4]         \n"
+                "vdup.s8    d13, d18[5]         \n"
+                "vdup.s8    d14, d18[6]         \n"
+                "vdup.s8    d15, d18[7]         \n"
 
-                    //mla
-                    "vmull.s8   q8, d0, d8          \n"
-                    "vmlal.s8   q8, d1, d9          \n"
-                    "vmlal.s8   q8, d2, d10         \n"
-                    "vmlal.s8   q8, d3, d11         \n"
-                    "vmlal.s8   q8, d4, d12         \n"
-                    "vmlal.s8   q8, d5, d13         \n"
-                    "vmlal.s8   q8, d6, d14         \n"
-                    "vmlal.s8   q8, d7, d15         \n"
+                //mla
+                "vmull.s8   q8, d0, d8          \n"
+                "vmlal.s8   q8, d1, d9          \n"
+                "vmlal.s8   q8, d2, d10         \n"
+                "vmlal.s8   q8, d3, d11         \n"
+                "vmlal.s8   q8, d4, d12         \n"
+                "vmlal.s8   q8, d5, d13         \n"
+                "vmlal.s8   q8, d6, d14         \n"
+                "vmlal.s8   q8, d7, d15         \n"
 
-                    //outptr0_s32
-                    "pld        [%1, #128]          \n"
-                    "vld1.32    {d20-d21}, [%1:128] \n" //outptr0_s32
-                    "vaddw.s16   q10, q10, d16      \n"
-                    "vst1.32    {d20-d21}, [%1:128]!\n"
-                    //###########################################
-                    //load inch kernel_1 k0-k7
-                    "vdup.s8    d8, d19[0]          \n"
-                    "vdup.s8    d9, d19[1]          \n"
-                    "vdup.s8    d10, d19[2]         \n"
-                    "vdup.s8    d11, d19[3]         \n"
-                    "vdup.s8    d12, d19[4]         \n"
-                    "vdup.s8    d13, d19[5]         \n"
-                    "vdup.s8    d14, d19[6]         \n"
-                    "vdup.s8    d15, d19[7]         \n"
+                //outptr0_s32
+                "pld        [%1, #128]          \n"
+                "vld1.32    {d20-d21}, [%1:128] \n" //outptr0_s32
+                "vaddw.s16   q10, q10, d16      \n"
+                "vst1.32    {d20-d21}, [%1:128]!\n"
+                //###########################################
+                //load inch kernel_1 k0-k7
+                "vdup.s8    d8, d19[0]          \n"
+                "vdup.s8    d9, d19[1]          \n"
+                "vdup.s8    d10, d19[2]         \n"
+                "vdup.s8    d11, d19[3]         \n"
+                "vdup.s8    d12, d19[4]         \n"
+                "vdup.s8    d13, d19[5]         \n"
+                "vdup.s8    d14, d19[6]         \n"
+                "vdup.s8    d15, d19[7]         \n"
 
-                    //mla
-                    "vmull.s8   q8, d0, d8          \n"
-                    "vmlal.s8   q8, d1, d9          \n"
-                    "vmlal.s8   q8, d2, d10         \n"
-                    "vmlal.s8   q8, d3, d11         \n"
-                    "vmlal.s8   q8, d4, d12         \n"
-                    "vmlal.s8   q8, d5, d13         \n"
-                    "vmlal.s8   q8, d6, d14         \n"
-                    "vmlal.s8   q8, d7, d15         \n"
+                //mla
+                "vmull.s8   q8, d0, d8          \n"
+                "vmlal.s8   q8, d1, d9          \n"
+                "vmlal.s8   q8, d2, d10         \n"
+                "vmlal.s8   q8, d3, d11         \n"
+                "vmlal.s8   q8, d4, d12         \n"
+                "vmlal.s8   q8, d5, d13         \n"
+                "vmlal.s8   q8, d6, d14         \n"
+                "vmlal.s8   q8, d7, d15         \n"
 
-                    //outptr1_s32
-                    "pld        [%2, #128]          \n"
-                    "vld1.32    {d20-d21}, [%2:128] \n" //outptr1_s32
-                    "vaddw.s16   q10, q10, d16      \n"
-                    "vst1.32    {d20-d21}, [%2:128]!\n"
-                    //############################################
-                    //load inch kernel_2 k0-k7
-                    "vdup.s8    d8, d24[0]          \n"
-                    "vdup.s8    d9, d24[1]          \n"
-                    "vdup.s8    d10, d24[2]         \n"
-                    "vdup.s8    d11, d24[3]         \n"
-                    "vdup.s8    d12, d24[4]         \n"
-                    "vdup.s8    d13, d24[5]         \n"
-                    "vdup.s8    d14, d24[6]         \n"
-                    "vdup.s8    d15, d24[7]         \n"
+                //outptr1_s32
+                "pld        [%2, #128]          \n"
+                "vld1.32    {d20-d21}, [%2:128] \n" //outptr1_s32
+                "vaddw.s16   q10, q10, d16      \n"
+                "vst1.32    {d20-d21}, [%2:128]!\n"
+                //############################################
+                //load inch kernel_2 k0-k7
+                "vdup.s8    d8, d24[0]          \n"
+                "vdup.s8    d9, d24[1]          \n"
+                "vdup.s8    d10, d24[2]         \n"
+                "vdup.s8    d11, d24[3]         \n"
+                "vdup.s8    d12, d24[4]         \n"
+                "vdup.s8    d13, d24[5]         \n"
+                "vdup.s8    d14, d24[6]         \n"
+                "vdup.s8    d15, d24[7]         \n"
 
-                    //mla
-                    "vmull.s8   q8, d0, d8          \n"
-                    "vmlal.s8   q8, d1, d9          \n"
-                    "vmlal.s8   q8, d2, d10         \n"
-                    "vmlal.s8   q8, d3, d11         \n"
-                    "vmlal.s8   q8, d4, d12         \n"
-                    "vmlal.s8   q8, d5, d13         \n"
-                    "vmlal.s8   q8, d6, d14         \n"
-                    "vmlal.s8   q8, d7, d15         \n"
+                //mla
+                "vmull.s8   q8, d0, d8          \n"
+                "vmlal.s8   q8, d1, d9          \n"
+                "vmlal.s8   q8, d2, d10         \n"
+                "vmlal.s8   q8, d3, d11         \n"
+                "vmlal.s8   q8, d4, d12         \n"
+                "vmlal.s8   q8, d5, d13         \n"
+                "vmlal.s8   q8, d6, d14         \n"
+                "vmlal.s8   q8, d7, d15         \n"
 
-                    //outptr2_s32
-                    "pld        [%3, #256]          \n"
-                    "vld1.32    {d20-d21}, [%3:128] \n" //outptr2_s32
-                    "vaddw.s16   q10, q10, d16      \n"
-                    "vst1.32    {d20-d21}, [%3:128]!\n"
-                    //#############################################
-                    //load inch kernel_3 k0-k7
-                    "vdup.s8    d8, d25[0]          \n"
-                    "vdup.s8    d9, d25[1]          \n"
-                    "vdup.s8    d10, d25[2]         \n"
-                    "vdup.s8    d11, d25[3]         \n"
-                    "vdup.s8    d12, d25[4]         \n"
-                    "vdup.s8    d13, d25[5]         \n"
-                    "vdup.s8    d14, d25[6]         \n"
-                    "vdup.s8    d15, d25[7]         \n"
+                //outptr2_s32
+                "pld        [%3, #256]          \n"
+                "vld1.32    {d20-d21}, [%3:128] \n" //outptr2_s32
+                "vaddw.s16   q10, q10, d16      \n"
+                "vst1.32    {d20-d21}, [%3:128]!\n"
+                //#############################################
+                //load inch kernel_3 k0-k7
+                "vdup.s8    d8, d25[0]          \n"
+                "vdup.s8    d9, d25[1]          \n"
+                "vdup.s8    d10, d25[2]         \n"
+                "vdup.s8    d11, d25[3]         \n"
+                "vdup.s8    d12, d25[4]         \n"
+                "vdup.s8    d13, d25[5]         \n"
+                "vdup.s8    d14, d25[6]         \n"
+                "vdup.s8    d15, d25[7]         \n"
 
-                    //mla
-                    "vmull.s8   q8, d0, d8          \n"
-                    "vmlal.s8   q8, d1, d9          \n"
-                    "vmlal.s8   q8, d2, d10         \n"
-                    "vmlal.s8   q8, d3, d11         \n"
-                    "vmlal.s8   q8, d4, d12         \n"
-                    "vmlal.s8   q8, d5, d13         \n"
-                    "vmlal.s8   q8, d6, d14         \n"
-                    "vmlal.s8   q8, d7, d15         \n"
+                //mla
+                "vmull.s8   q8, d0, d8          \n"
+                "vmlal.s8   q8, d1, d9          \n"
+                "vmlal.s8   q8, d2, d10         \n"
+                "vmlal.s8   q8, d3, d11         \n"
+                "vmlal.s8   q8, d4, d12         \n"
+                "vmlal.s8   q8, d5, d13         \n"
+                "vmlal.s8   q8, d6, d14         \n"
+                "vmlal.s8   q8, d7, d15         \n"
 
-                    //outptr3_s32
-                    "pld        [%4, #256]          \n"
-                    "vld1.32    {d20-d21}, [%4:128] \n" //outptr3_s32
-                    "vaddw.s16   q10, q10, d16      \n"
-                    "vst1.32    {d20-d21}, [%4:128]!\n"
-                    : "=r"(nn),          // %0
-                      "=r"(outptr0),     // %1
-                      "=r"(outptr1),     // %2
-                      "=r"(outptr2),     // %3
-                      "=r"(outptr3),     // %4
-                      "=r"(r0),          // %5
-                      "=r"(r1),          // %6
-                      "=r"(r2),          // %7
-                      "=r"(r3),          // %8
-                      "=r"(r4),          // %9
-                      "=r"(r5),          // %10
-                      "=r"(r6),          // %11
-                      "=r"(r7)           // %12
-                    : "0"(nn),
-                      "1"(outptr0),
-                      "2"(outptr1),
-                      "3"(outptr2),
-                      "4"(outptr3),
-                      "5"(r0),
-                      "6"(r1),
-                      "7"(r2),
-                      "8"(r3),
-                      "9"(r4),
-                      "10"(r5),
-                      "11"(r6),
-                      "12"(r7)
-                    : "cc", "memory", "q0", "q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8", "q10", "q11"
-                );
+                //outptr3_s32
+                "pld        [%4, #256]          \n"
+                "vld1.32    {d20-d21}, [%4:128] \n" //outptr3_s32
+                "vaddw.s16   q10, q10, d16      \n"
+                "vst1.32    {d20-d21}, [%4:128]!\n"
+                : "=r"(nn),          // %0
+                  "=r"(outptr0),     // %1
+                  "=r"(outptr1),     // %2
+                  "=r"(outptr2),     // %3
+                  "=r"(outptr3),     // %4
+                  "=r"(r0),          // %5
+                  "=r"(r1),          // %6
+                  "=r"(r2),          // %7
+                  "=r"(r3),          // %8
+                  "=r"(r4),          // %9
+                  "=r"(r5),          // %10
+                  "=r"(r6),          // %11
+                  "=r"(r7)           // %12
+                : "0"(nn),
+                  "1"(outptr0),
+                  "2"(outptr1),
+                  "3"(outptr2),
+                  "4"(outptr3),
+                  "5"(r0),
+                  "6"(r1),
+                  "7"(r2),
+                  "8"(r3),
+                  "9"(r4),
+                  "10"(r5),
+                  "11"(r6),
+                  "12"(r7)
+                : "cc", "memory", "q0", "q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8", "q10", "q11"
+            );
 
         }
 

@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "requantize_arm.h"
+#include "benchmark.h"
 
 #if __ARM_NEON
 #include <arm_neon.h>
@@ -39,6 +40,8 @@ DEFINE_LAYER_CREATOR(Requantize_arm)
 
 int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) const
 { 
+    //double start = ncnn::get_current_time();
+
 #if __aarch64__
     // TODO port to aarch64 fcvtas
     return Requantize::forward(bottom_blob, top_blob, opt);
@@ -61,7 +64,6 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
 
     if (dims == 1)
     {
-        printf("###1 bias_term : %d\n", bias_term);
         int w = bottom_blob.w;
 
         const int* intptr = bottom_blob;
@@ -180,7 +182,7 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                 {
                 asm volatile(
                     "pld        [%1, #256]          \n"
-                    "vld1.s32   {d0-d3}, [%1]!      \n" //q0-q1 data
+                    "vld1.s32   {d0-d3}, [%1:128]!  \n" //q0-q1 data
                     "vdup.f32   q10, %6             \n" //q10 scale_out
                     "vdup.f32   q12, %7             \n" //q12 bias_tm
 
@@ -212,13 +214,13 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                     "vqmovn.s32 d5, q1              \n"
 
                     "pld        [%1, #256]          \n"
-                    "vld1.s32   {d0-d3}, [%1]!      \n" //q0-q1 data
+                    "vld1.s32   {d0-d3}, [%1:128]!  \n" //q0-q1 data
 
                     // top_s16 -> top_s8
                     "vqmovn.s16   d4, q2            \n"
 
                     // save top_s8
-                    "vst1.8     {d4}, [%2]!         \n"
+                    "vst1.8     {d4}, [%2:64]!      \n"
 
                     "subs       %0, #1              \n"
                     "bne        0b                  \n"
@@ -269,7 +271,7 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                 {
                 asm volatile(
                     "pld        [%1, #256]          \n"
-                    "vld1.s32   {d0-d3}, [%1]!      \n" //q0-q1 data
+                    "vld1.s32   {d0-d3}, [%1:128]!  \n" //q0-q1 data
                     "vdup.f32   q10, %6             \n" //q10 scale_out
 
                     "0:                             \n"
@@ -296,13 +298,13 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                     "vqmovn.s32 d5, q1              \n"
 
                     "pld        [%1, #256]          \n"
-                    "vld1.s32   {d0-d3}, [%1]!      \n" //q0-q1 data
+                    "vld1.s32   {d0-d3}, [%1:128]!  \n" //q0-q1 data
 
                     // top_s16 -> top_s8
                     "vqmovn.s16   d4, q2            \n"
 
                     // save top_s8
-                    "vst1.8     {d4}, [%2]!         \n"
+                    "vst1.8     {d4}, [%2:64]!      \n"
 
                     "subs       %0, #1              \n"
                     "bne        0b                  \n"
@@ -338,7 +340,10 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
         : "r"(FPSCR_value)
         : "memory"
     );
-#endif    
+#endif
+
+    //double end = ncnn::get_current_time();
+    //fprintf(stderr, "requantize : %8.2lfms\n", end - start);
 
     return 0;
 }

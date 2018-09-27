@@ -28,6 +28,8 @@ public:
 
     virtual int forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) const;
 
+    virtual int forward_int8(const Mat& bottom_blob, Mat& top_blob, const Option& opt) const;
+
     enum { PoolMethod_MAX = 0, PoolMethod_AVE = 1 };
 
 public:
@@ -43,6 +45,7 @@ public:
     int pad_bottom;
     int global_pooling;
     int pad_mode;// 0=full 1=valid 2=SAME
+    int use_int8_inference;
 };
 
 } // namespace ncnn

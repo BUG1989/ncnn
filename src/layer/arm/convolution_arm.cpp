@@ -420,7 +420,7 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     #if !__aarch64__
             if (kernel_w == 3 && kernel_h == 3 && dilation_w == 1 && dilation_h == 1 && stride_w == 1 && stride_h == 1)
             {
-                conv3x3s1_packed_int8_neon(bottom_blob_bordered, top_blob, weight_3x3s1_int8_data, opt);
+               conv3x3s1_packed_int8_neon(bottom_blob_bordered, top_blob, weight_3x3s1_int8_data, opt);
             }
             else
     #endif // !__aarch64__
@@ -449,7 +449,7 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     #if !__aarch64__
             if (kernel_w == 3 && kernel_h == 3 && dilation_w == 1 && dilation_h == 1 && stride_w == 1 && stride_h == 1)
             {
-                conv3x3s1_packed_int8_neon(bottom_blob_bordered, top_blob_tm, weight_3x3s1_int8_data, opt);
+               conv3x3s1_packed_int8_neon(bottom_blob_bordered, top_blob_tm, weight_3x3s1_int8_data, opt);
             }
             else
     #endif // !__aarch64__
