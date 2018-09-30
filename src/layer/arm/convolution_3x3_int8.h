@@ -2932,27 +2932,35 @@ static void conv3x3s2_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
 
     const signed char* kernel = _kernel;
     
-    int nn_outch = outch >> 1;
-    int remain_outch_start = nn_outch << 1; 
+    int nn_outch = outch >> 2;
+    int remain_outch_start = nn_outch << 2; 
 
     #pragma omp parallel for num_threads(opt.num_threads)
     for (int pp=0; pp < nn_outch; pp++)
     {
-        int p = pp * 2;
+        int p = pp * 4;
 
         Mat out0 = top_blob.channel(p);
         Mat out1 = top_blob.channel(p + 1);
-
+        Mat out2 = top_blob.channel(p + 2);
+        Mat out3 = top_blob.channel(p + 3);
+        
         out0.fill(0.f);
         out1.fill(0.f);
+        out2.fill(0.f);
+        out3.fill(0.f);
 
         const signed char* kernel0 = (const signed char*)kernel + p * inch * 9;
         const signed char* kernel1 = (const signed char*)kernel + (p + 1) * inch * 9;
+        const signed char* kernel2 = (const signed char*)kernel + (p + 2) * inch * 9;
+        const signed char* kernel3 = (const signed char*)kernel + (p + 3) * inch * 9;        
 
         for (int q=0; q<inch; q++)
         {
             int* outptr0 = out0;
             int* outptr1 = out1;
+            int* outptr2 = out2;
+            int* outptr3 = out3;       
 
             const signed char* img0 = bottom_blob.channel(q);
 
@@ -2968,6 +2976,14 @@ static void conv3x3s2_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
             const signed char* k11 = kernel1 + 3;
             const signed char* k12 = kernel1 + 6;
 
+            const signed char* k20 = kernel2;
+            const signed char* k21 = kernel2 + 3;
+            const signed char* k22 = kernel2 + 6;
+
+            const signed char* k30 = kernel3;
+            const signed char* k31 = kernel3 + 3;
+            const signed char* k32 = kernel3 + 6;                        
+
             int i = 0;
 
             for (; i < outh; i++)
@@ -2976,12 +2992,15 @@ static void conv3x3s2_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
                 int remain = outw & 7;  
 
                 asm volatile(
-                    "vld1.s8    {d22-d23}, [%0]    \n"
-                    "vld1.s8    {d24-d25}, [%1]    \n"
-                    : "=r"(kernel0), // %0
-                      "=r"(kernel1)  // %1
-                    : "0"(kernel0),
-                      "1"(kernel1)
+                    "vld1.s8    {d22-d23}, [%0]    \n"  // q11
+                    "vld1.s8    {d24-d25}, [%1]    \n"  // q12
+                    "vld1.s8    {d28-d29}, [%2]    \n"  // q14
+                    "vld1.s8    {d30-d31}, [%3]    \n"  // q15                    
+                    :  
+                    : "r"(kernel0),  // %0
+                      "r"(kernel1),  // %1
+                      "r"(kernel2),  // %2
+                      "r"(kernel3)   // %3
                     : "cc", "memory"
                 );
 
@@ -2989,97 +3008,157 @@ static void conv3x3s2_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
                 {
                     asm volatile(
                         "0:                             \n"
-                        "pld        [%3, #192]          \n"
-                        "vld2.s8    {d0-d1}, [%3]!      \n" // r0
-                        "vld2.s8    {d2-d3}, [%3]       \n"
+                        "pld        [%5, #192]          \n"
+                        "vld2.s8    {d0-d1}, [%5]!      \n" // r0		// q0
+                        "vld2.s8    {d2-d3}, [%5]       \n"				// q1
                         "vext.8     d3, d0, d2, #1      \n"
-            
-                        "vdup.s8    d26, d22[0]         \n"
-                        "vdup.s8    d27, d22[1]         \n"
-                        "vdup.s8    d28, d22[2]         \n"
-                        "vmull.s8   q2, d0, d26         \n" // k00
-                        "vmlal.s8   q2, d1, d27         \n" // k01
-                        "vmlal.s8   q2, d3, d28         \n" // k02
-                        
-                        "pld        [%4, #192]          \n"
-                        "vld2.s8    {d6-d7}, [%4]!      \n" // r1
-                        "vld2.s8    {d8-d9}, [%4]       \n"
-                        "vext.8     d9, d6, d8, #1      \n"
-                        
-                        "vdup.s8    d26, d22[3]         \n"
-                        "vdup.s8    d27, d22[4]         \n"
-                        "vdup.s8    d28, d22[5]         \n"
-                        "vmlal.s8   q2, d6, d26         \n" // k03
-                        "vmlal.s8   q2, d7, d27         \n" // k04
-                        "vmlal.s8   q2, d9, d28         \n" // k05
 
-                        "pld        [%5, #192]          \n" 
-                        "vld2.s8    {d10-d11}, [%5]!    \n" // r2
-                        "vld2.s8    {d12-d13}, [%5]     \n"
-                        "vext.8     d13, d10, d12, #1   \n"
-                        
-                        "vdup.s8    d26, d22[6]         \n"
-                        "vdup.s8    d27, d22[7]         \n"
-                        "vdup.s8    d28, d23[0]         \n"
-                        "vmlal.s8   q2, d10, d26        \n" // k06
-                        "vmlal.s8   q2, d11, d27        \n" // k07
-                        "vmlal.s8   q2, d13, d28        \n" // k08
-
-                        "pld        [%1, #256]          \n"
-                        "vld1.32    {d14-d17}, [%1]     \n" //sum0
-                        "vaddw.s16   q7, q7, d4         \n"
-                        "vaddw.s16   q8, q8, d5         \n"
-                        "vst1.32    {d14-d17}, [%1]!    \n"
+                        "vdup.s8    d26, d22[0]         \n"				// q13
+                        "vdup.s8    d27, d22[1]         \n"				
+                        "vdup.s8     d2, d22[2]         \n"
+                        "vmull.s8   q2, d0, d26         \n" // k00-1	// q2
+                        "vmlal.s8   q2, d1, d27         \n" // k01-1
+                        "vmlal.s8   q2, d3,  d2         \n" // k02-1
                         
                         "vdup.s8    d26, d24[0]         \n"
                         "vdup.s8    d27, d24[1]         \n"
-                        "vdup.s8    d28, d24[2]         \n"
-                        "vmull.s8   q2, d0, d26         \n" // k00
-                        "vmlal.s8   q2, d1, d27         \n" // k01
-                        "vmlal.s8   q2, d3, d28         \n" // k02
+                        "vdup.s8     d2, d24[2]         \n"
+                        "vmull.s8   q3, d0, d26         \n" // k00-2	// q3
+                        "vmlal.s8   q3, d1, d27         \n" // k01-2
+                        "vmlal.s8   q3, d3,  d2         \n" // k02-2
+
+                        "vdup.s8    d26, d28[0]         \n"
+                        "vdup.s8    d27, d28[1]         \n"
+                        "vdup.s8     d2, d28[2]         \n"
+                        "vmull.s8   q4, d0, d26         \n" // k00-3	// q4
+                        "vmlal.s8   q4, d1, d27         \n" // k01-3
+                        "vmlal.s8   q4, d3,  d2         \n" // k02-3    
+
+                        "vdup.s8    d26, d30[0]         \n"
+                        "vdup.s8    d27, d30[1]         \n"
+                        "vdup.s8     d2, d30[2]         \n"
+                        "vmull.s8   q5, d0, d26         \n" // k00-4	// q5
+                        "vmlal.s8   q5, d1, d27         \n" // k01-4
+                        "vmlal.s8   q5, d3,  d2         \n" // k02-4                                             
+                        
+                        "pld        [%6, #192]          \n"
+                        "vld2.s8    {d0-d1}, [%6]!      \n" // r1		// q0
+                        "vld2.s8    {d2-d3}, [%6]       \n"				// q1
+                        "vext.8     d3, d0, d2, #1      \n"	
+                        
+                        "vdup.s8    d26, d22[3]         \n" 
+                        "vdup.s8    d27, d22[4]         \n" 
+                        "vdup.s8     d2, d22[5]         \n"	
+                        "vmlal.s8   q2, d0, d26         \n" // k03-1	// q2
+                        "vmlal.s8   q2, d1, d27         \n" // k04-1
+                        "vmlal.s8   q2, d3,  d2         \n" // k05-1	
                         
                         "vdup.s8    d26, d24[3]         \n"
                         "vdup.s8    d27, d24[4]         \n"
-                        "vdup.s8    d28, d24[5]         \n"
-                        "vmlal.s8   q2, d6, d26         \n" // k03
-                        "vmlal.s8   q2, d7, d27         \n" // k04
-                        "vmlal.s8   q2, d9, d28         \n" // k05
+                        "vdup.s8     d2, d24[5]         \n"
+                        "vmlal.s8   q3, d0, d26         \n" // k03-2	// q3
+                        "vmlal.s8   q3, d1, d27         \n" // k04-2
+                        "vmlal.s8   q3, d3,  d2         \n" // k05-2
+
+                        "vdup.s8    d26, d28[3]         \n"
+                        "vdup.s8    d27, d28[4]         \n"
+                        "vdup.s8     d2, d28[5]         \n"
+                        "vmlal.s8   q4, d0, d26         \n" // k03-3	// q4
+                        "vmlal.s8   q4, d1, d27         \n" // k04-3
+                        "vmlal.s8   q4, d3,  d2         \n" // k05-3  
+
+                        "vdup.s8    d26, d30[3]         \n"
+                        "vdup.s8    d27, d30[4]         \n"
+                        "vdup.s8     d2, d30[5]         \n"
+                        "vmlal.s8   q5, d0, d26         \n" // k03-4	// q5
+                        "vmlal.s8   q5, d1, d27         \n" // k04-4
+                        "vmlal.s8   q5, d3,  d2         \n" // k05-4                                          
+                        
+                        "pld        [%7, #192]          \n"
+                        "vld2.s8    {d0-d1}, [%7]!      \n" // r2		// q0
+                        "vld2.s8    {d2-d3}, [%7]       \n"				// q1
+                        "vext.8     d3, d0, d2, #1      \n"	
+
+                        "vdup.s8    d26, d22[6]         \n"
+                        "vdup.s8    d27, d22[7]         \n"
+                        "vdup.s8     d2, d23[0]         \n"	
+                        "vmlal.s8   q2, d0, d26         \n" // k06-1	// q2
+                        "vmlal.s8   q2, d1, d27         \n" // k07-1
+                        "vmlal.s8   q2, d3,  d2         \n" // k08-1
                         
                         "vdup.s8    d26, d24[6]         \n"
                         "vdup.s8    d27, d24[7]         \n"
-                        "vdup.s8    d28, d25[0]         \n"
-                        "vmlal.s8   q2, d10, d26        \n" // k06
-                        "vmlal.s8   q2, d11, d27        \n" // k07
-                        "vmlal.s8   q2, d13, d28        \n" // k08
+                        "vdup.s8     d2, d25[0]         \n"
+                        "vmlal.s8   q3, d0, d26         \n" // k06-2	// q3
+                        "vmlal.s8   q3, d1, d27         \n" // k07-2
+                        "vmlal.s8   q3, d3,  d2         \n" // k08-2
 
-                        "pld        [%2, #256]          \n"
-                        "vld1.32    {d14-d17}, [%2]     \n" //sum1
+                        "vdup.s8    d26, d28[6]         \n"
+                        "vdup.s8    d27, d28[7]         \n"
+                        "vdup.s8     d2, d29[0]         \n"
+                        "vmlal.s8   q4, d0, d26         \n" // k06-3	// q4
+                        "vmlal.s8   q4, d1, d27         \n" // k07-3
+                        "vmlal.s8   q4, d3,  d2         \n" // k08-3
+
+                        "vdup.s8    d26, d30[6]         \n"
+                        "vdup.s8    d27, d30[7]         \n"
+                        "vdup.s8     d2, d31[0]         \n"
+                        "vmlal.s8   q5, d0, d26         \n" // k06-4	// q5
+                        "vmlal.s8   q5, d1, d27         \n" // k07-4
+                        "vmlal.s8   q5, d3,  d2         \n" // k08-4                                                
+                        
+                        "pld        [%1, #256]          \n"
+                        "vld1.32    {d14-d17}, [%1]     \n" //sum0		// q7 q8
                         "vaddw.s16   q7, q7, d4         \n"
                         "vaddw.s16   q8, q8, d5         \n"
-                        "vst1.32    {d14-d17}, [%2]!    \n"
+                        "vst1.32    {d14-d17}, [%1]!    \n"	
+                        
+                        "pld        [%2, #256]          \n"
+                        "vld1.32    {d14-d17}, [%2]     \n" //sum1
+                        "vaddw.s16   q7, q7, d6         \n"
+                        "vaddw.s16   q8, q8, d7         \n"
+                        "vst1.32    {d14-d17}, [%2]!    \n"	
+
+                        "pld        [%3, #256]          \n"
+                        "vld1.32    {d14-d17}, [%3]     \n" //sum2
+                        "vaddw.s16   q7, q7, d8         \n"
+                        "vaddw.s16   q8, q8, d9         \n"
+                        "vst1.32    {d14-d17}, [%3]!    \n"  
+
+                        "pld        [%4, #256]          \n"
+                        "vld1.32    {d14-d17}, [%4]     \n" //sum1
+                        "vaddw.s16   q7, q7, d10        \n"
+                        "vaddw.s16   q8, q8, d11        \n"
+                        "vst1.32    {d14-d17}, [%4]!    \n"                                             
 
                         "subs       %0, #1              \n"
                         "bne        0b                  \n"
                         : "=r"(nn),             // %0
                           "=r"(outptr0),        // %1
                           "=r"(outptr1),        // %2
-                          "=r"(r0),             // %3
-                          "=r"(r1),             // %4
-                          "=r"(r2)              // %5
+                          "=r"(outptr2),        // %3
+                          "=r"(outptr3),        // %4                          
+                          "=r"(r0),             // %5
+                          "=r"(r1),             // %6
+                          "=r"(r2)              // %7
                         : "0"(nn),
                           "1"(outptr0),
                           "2"(outptr1),
-                          "3"(r0),
-                          "4"(r1),
-                          "5"(r2)
+                          "3"(outptr2),
+                          "4"(outptr3),                          
+                          "5"(r0),
+                          "6"(r1),
+                          "7"(r2)
                         : "cc", "memory", "q0", "q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8", "q9", "q10", "q13", "q14", "q15"
-                    );
+                    );//                                                       q6                q9    q10                         
                 }               
 
                 for (; remain>0; remain--)
                 {
                     int sum0 = 0;
                     int sum1 = 0;
+                    int sum2 = 0;
+                    int sum3 = 0;                    
                 
                     sum0 += (int)r0[0] * kernel0[0];
                     sum0 += (int)r0[1] * kernel0[1];
@@ -3100,15 +3179,39 @@ static void conv3x3s2_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
                     sum1 += (int)r2[0] * kernel1[6];
                     sum1 += (int)r2[1] * kernel1[7];
                     sum1 += (int)r2[2] * kernel1[8];
+
+                    sum2 += (int)r0[0] * kernel2[0];
+                    sum2 += (int)r0[1] * kernel2[1];
+                    sum2 += (int)r0[2] * kernel2[2];
+                    sum2 += (int)r1[0] * kernel2[3];
+                    sum2 += (int)r1[1] * kernel2[4];
+                    sum2 += (int)r1[2] * kernel2[5];
+                    sum2 += (int)r2[0] * kernel2[6];
+                    sum2 += (int)r2[1] * kernel2[7];
+                    sum2 += (int)r2[2] * kernel2[8];
+
+                    sum3 += (int)r0[0] * kernel3[0];
+                    sum3 += (int)r0[1] * kernel3[1];
+                    sum3 += (int)r0[2] * kernel3[2];
+                    sum3 += (int)r1[0] * kernel3[3];
+                    sum3 += (int)r1[1] * kernel3[4];
+                    sum3 += (int)r1[2] * kernel3[5];
+                    sum3 += (int)r2[0] * kernel3[6];
+                    sum3 += (int)r2[1] * kernel3[7];
+                    sum3 += (int)r2[2] * kernel3[8];                                    
                 
                     *outptr0 += sum0;
                     *outptr1 += sum1;
+                    *outptr2 += sum2;
+                    *outptr3 += sum3;                    
 
                     r0 += 2;
                     r1 += 2;
                     r2 += 2;
                     outptr0++;
                     outptr1++;
+                    outptr2++;
+                    outptr3++;                    
                 }       
 
                 r0 += tailstep;
@@ -3118,6 +3221,8 @@ static void conv3x3s2_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
 
             kernel0 += 9;
             kernel1 += 9;
+            kernel2 += 9;
+            kernel3 += 9;            
         }
     }
 
@@ -10149,17 +10254,29 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
     
     typedef void (*conv_func_int8)(const Mat&, Mat&, const Mat&, const Option&);
 
+    // conv_func_int8 conv_func_table[8] =
+    // {
+    //     conv3x3s2_neon_s8,            //0
+    //     conv3x3s2_neon_s8,            //1
+    //     conv3x3s2_neon_s8_left2,      //2
+    //     conv3x3s2_neon_s8_left3,      //3
+    //     conv3x3s2_neon_s8_left4,      //4
+    //     conv3x3s2_neon_s8_left5,      //5
+    //     conv3x3s2_neon_s8_left6,      //6
+    //     conv3x3s2_neon_s8_left7       //7
+    // }; 
+
     conv_func_int8 conv_func_table[8] =
     {
         conv3x3s2_neon_s8,            //0
         conv3x3s2_neon_s8,            //1
-        conv3x3s2_neon_s8_left2,      //2
-        conv3x3s2_neon_s8_left3,      //3
-        conv3x3s2_neon_s8_left4,      //4
-        conv3x3s2_neon_s8_left5,      //5
-        conv3x3s2_neon_s8_left6,      //6
-        conv3x3s2_neon_s8_left7       //7
-    };   
+        conv3x3s2_neon_s8,      //2
+        conv3x3s2_neon_s8,      //3
+        conv3x3s2_neon_s8,      //4
+        conv3x3s2_neon_s8,      //5
+        conv3x3s2_neon_s8,      //6
+        conv3x3s2_neon_s8       //7
+    };       
 
     conv_func_int8 conv = conv_func_table[remain];
 

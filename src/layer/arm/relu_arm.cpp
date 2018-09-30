@@ -69,23 +69,12 @@ int ReLU_arm::forward_inplace_int8(Mat& bottom_top_blob, const Option& opt) cons
 #endif // __ARM_NEON
             for (; remain>0; remain--)
             {
-                *ptr = std::max(*ptr, (signed char)0);
+                if (*ptr < 0)
+                    *ptr = 0;
 
                 ptr++;
             }
         }
-
-        // #pragma omp parallel for num_threads(opt.num_threads)
-        // for (int q=0; q<channels; q++)
-        // {
-        //     signed char* ptr = bottom_top_blob.channel(q);
-
-        //     for (int i=0; i<size; i++)
-        //     {
-        //         if (ptr[i] < 0)
-        //             ptr[i] = 0;
-        //     }
-        // }
     }
     else
     {

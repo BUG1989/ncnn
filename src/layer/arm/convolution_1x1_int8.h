@@ -166,15 +166,12 @@ static void conv1x1s1_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
                     "vld1.s8    d18, [%0]   \n"
                     "vld1.s8    d19, [%1]   \n"
                     "vld1.s8    d24, [%2]   \n"
-                    "vld1.s8    d25, [%3]   \n"
-                    : "=r"(kernel0), // %0
-                      "=r"(kernel1), // %1
-                      "=r"(kernel2), // %2
-                      "=r"(kernel3)  // %3
-                    : "0"(kernel0),
-                      "1"(kernel1),
-                      "2"(kernel2),
-                      "3"(kernel3)
+                    "vld1.s8    d25, [%3]   \n" 
+                    :
+                    : "r"(kernel0), // %0
+                      "r"(kernel1), // %1
+                      "r"(kernel2), // %2
+                      "r"(kernel3)  // %3
                     :
                 );
 
@@ -222,7 +219,7 @@ static void conv1x1s1_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
                     "vdup.s8    d15, d18[7]         \n"                    
 
                     //"pld        [%1, #128]          \n"
-                    "vld1.32    {d20-d23}, [%1:128] \n" //outptr0_s32
+                    "vld1.32    {d20-d23}, [%1:128] \n" // outptr0_s32
 
                     "vmlal.s8   q8, d3, d11         \n"
                     "vmlal.s8   q8, d4, d12         \n"
@@ -234,15 +231,13 @@ static void conv1x1s1_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
                     "vmlal.s8   q8, d6, d14         \n"
                     "vmlal.s8   q8, d7, d15         \n"
 
-                    //outptr0_s32
-
                     "vaddw.s16   q10, q10, d16      \n"
                     "vaddw.s16   q11, q11, d17      \n"
 
                     "vdup.s8    d10, d19[2]         \n"
                     "vdup.s8    d11, d19[3]         \n"
 
-                    "vst1.32    {d20-d23}, [%1:128]!\n"
+                    "vst1.32    {d20-d23}, [%1:128]!\n" // outptr0_s32
                     //###########################################
                     //load inch kernel_1 k0-k7
                     "vdup.s8    d12, d19[4]         \n"
@@ -256,7 +251,7 @@ static void conv1x1s1_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
                     "vmlal.s8   q8, d2, d10         \n"
 
                     //"pld        [%2, #128]          \n"
-                    "vld1.32    {d20-d23}, [%2:128] \n" //outptr1_s32
+                    "vld1.32    {d20-d23}, [%2:128] \n" // outptr1_s32
 
                     "vmlal.s8   q8, d3, d11         \n"
                     "vmlal.s8   q8, d4, d12         \n"
@@ -271,14 +266,13 @@ static void conv1x1s1_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
                     "vdup.s8    d10, d24[2]         \n"
                     "vdup.s8    d11, d24[3]         \n"                    
 
-                    //outptr1_s32
                     "vaddw.s16   q10, q10, d16      \n"
                     "vaddw.s16   q11, q11, d17      \n"
 
                     "vdup.s8    d12, d24[4]         \n"
                     "vdup.s8    d13, d24[5]         \n"
 
-                    "vst1.32    {d20-d23}, [%2:128]!\n"
+                    "vst1.32    {d20-d23}, [%2:128]!\n" // outptr1_s32
                     //############################################
                     //load inch kernel_2 k0-k7
                     "vdup.s8    d14, d24[6]         \n"
@@ -290,7 +284,7 @@ static void conv1x1s1_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
                     "vmlal.s8   q8, d2, d10         \n"
 
                     //"pld        [%3, #128]          \n"
-                    "vld1.32    {d20-d23}, [%3:128] \n" //outptr2_s32
+                    "vld1.32    {d20-d23}, [%3:128] \n" // outptr2_s32
 
                     "vmlal.s8   q8, d3, d11         \n"
                     "vmlal.s8   q8, d4, d12         \n"
@@ -305,15 +299,13 @@ static void conv1x1s1_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
                     "vdup.s8    d10, d25[2]         \n"
                     "vdup.s8    d11, d25[3]         \n"
 
-                    //outptr2_s32
-
                     "vaddw.s16   q10, q10, d16      \n"
                     "vaddw.s16   q11, q11, d17      \n"
 
                     "vdup.s8    d12, d25[4]         \n"
                     "vdup.s8    d13, d25[5]         \n"
 
-                    "vst1.32    {d20-d23}, [%3:128]!\n"
+                    "vst1.32    {d20-d23}, [%3:128]!\n" // outptr2_s32
                     //#############################################
                     //load inch kernel_3 k0-k7
                     "vdup.s8    d14, d25[6]         \n"
@@ -324,7 +316,7 @@ static void conv1x1s1_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
                     "vmlal.s8   q8, d1, d9          \n"
                     
                     //"pld        [%4, #128]          \n"
-                    "vld1.32    {d20-d23}, [%4:128] \n" //outptr3_s32
+                    "vld1.32    {d20-d23}, [%4:128] \n" // outptr3_s32
 
                     "vmlal.s8   q8, d2, d10         \n"
                     "pld        [%5, #64]          \n"
@@ -350,7 +342,6 @@ static void conv1x1s1_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
                     "pld        [%10, #64]         \n"
                     "vld1.s8    {d5}, [%10 :64]!   \n" //r5                    
 
-                    //outptr3_s32
                     "vaddw.s16   q10, q10, d16      \n"
                     "vaddw.s16   q11, q11, d17      \n"
 
@@ -360,7 +351,7 @@ static void conv1x1s1_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
                     "pld        [%12, #64]         \n"
                     "vld1.s8    {d7}, [%12 :64]!   \n" //r7
 
-                    "vst1.32    {d20-d23}, [%4:128]!\n"
+                    "vst1.32    {d20-d23}, [%4:128]!\n" // outptr3_s32
 
                     //next
                     "subs       %0, #1              \n"
@@ -622,14 +613,14 @@ static void conv1x1s1_neon_s8(const Mat& bottom_blob, Mat& top_blob, const Mat& 
                     "vdup.s8    d15, d18[7]         \n"
 
                     //mla
-                    "vmull.s8   q14, d0,    d8          \n"
-                    "vmlal.s8   q14, d1,    d9          \n"
-                    "vmlal.s8   q14, d2,    d10         \n"
-                    "vmlal.s8   q14, d3,    d11         \n"
-                    "vmlal.s8   q14, d4,    d12         \n"
-                    "vmlal.s8   q14, d5,    d13         \n"
-                    "vmlal.s8   q14, d6,    d14         \n"
-                    "vmlal.s8   q14, d7,    d15         \n"
+                    "vmull.s8   q14, d0, d8         \n"
+                    "vmlal.s8   q14, d1, d9         \n"
+                    "vmlal.s8   q14, d2, d10        \n"
+                    "vmlal.s8   q14, d3, d11        \n"
+                    "vmlal.s8   q14, d4, d12        \n"
+                    "vmlal.s8   q14, d5, d13        \n"
+                    "vmlal.s8   q14, d6, d14        \n"
+                    "vmlal.s8   q14, d7, d15        \n"
 
                     //outptr0_s32
                     "pld        [%1, #256]          \n"
@@ -804,16 +795,13 @@ static void conv1x1s1_neon_s8_left4(const Mat& bottom_blob, Mat& top_blob, const
                 "vld1.s8    d19, [%1]   \n"
                 "vld1.s8    d24, [%2]   \n"
                 "vld1.s8    d25, [%3]   \n"
-                : "=r"(kernel0), // %0
-                  "=r"(kernel1), // %1
-                  "=r"(kernel2), // %2
-                  "=r"(kernel3)  // %3
-                : "0"(kernel0),
-                  "1"(kernel1),
-                  "2"(kernel2),
-                  "3"(kernel3)
+                : 
+                : "r"(kernel0), // %0
+                  "r"(kernel1), // %1
+                  "r"(kernel2), // %2
+                  "r"(kernel3)  // %3
                 :
-            );
+                );
 
             if (nn > 0)
             {                
@@ -873,15 +861,13 @@ static void conv1x1s1_neon_s8_left4(const Mat& bottom_blob, Mat& top_blob, const
                     "vmlal.s8   q8, d6, d14         \n"
                     "vmlal.s8   q8, d7, d15         \n"
 
-                    //outptr0_s32
-
                     "vaddw.s16   q10, q10, d16      \n"
                     "vaddw.s16   q11, q11, d17      \n"
 
                     "vdup.s8    d10, d19[2]         \n"
                     "vdup.s8    d11, d19[3]         \n"
 
-                    "vst1.32    {d20-d23}, [%1:128]!\n"
+                    "vst1.32    {d20-d23}, [%1:128]!\n" //outptr0_s32
                     //###########################################
                     //load inch kernel_1 k0-k7
                     "vdup.s8    d12, d19[4]         \n"
@@ -910,14 +896,13 @@ static void conv1x1s1_neon_s8_left4(const Mat& bottom_blob, Mat& top_blob, const
                     "vdup.s8    d10, d24[2]         \n"
                     "vdup.s8    d11, d24[3]         \n"                    
 
-                    //outptr1_s32
                     "vaddw.s16   q10, q10, d16      \n"
                     "vaddw.s16   q11, q11, d17      \n"
 
                     "vdup.s8    d12, d24[4]         \n"
                     "vdup.s8    d13, d24[5]         \n"
 
-                    "vst1.32    {d20-d23}, [%2:128]!\n"
+                    "vst1.32    {d20-d23}, [%2:128]!\n" //outptr1_s32
                     //############################################
                     //load inch kernel_2 k0-k7
                     "vdup.s8    d14, d24[6]         \n"
@@ -944,15 +929,13 @@ static void conv1x1s1_neon_s8_left4(const Mat& bottom_blob, Mat& top_blob, const
                     "vdup.s8    d10, d25[2]         \n"
                     "vdup.s8    d11, d25[3]         \n"
 
-                    //outptr2_s32
-
                     "vaddw.s16   q10, q10, d16      \n"
                     "vaddw.s16   q11, q11, d17      \n"
 
                     "vdup.s8    d12, d25[4]         \n"
                     "vdup.s8    d13, d25[5]         \n"
 
-                    "vst1.32    {d20-d23}, [%3:128]!\n"
+                    "vst1.32    {d20-d23}, [%3:128]!\n" //outptr2_s32
                     //#############################################
                     //load inch kernel_3 k0-k7
                     "vdup.s8    d14, d25[6]         \n"
@@ -989,8 +972,6 @@ static void conv1x1s1_neon_s8_left4(const Mat& bottom_blob, Mat& top_blob, const
                     "pld        [%10, #64]         \n"
                     "vld1.s8    {d5}, [%10 :64]!   \n" //r5                    
 
-                    //outptr3_s32
-
                     "vaddw.s16   q10, q10, d16      \n"
                     "vaddw.s16   q11, q11, d17      \n"
 
@@ -1000,7 +981,7 @@ static void conv1x1s1_neon_s8_left4(const Mat& bottom_blob, Mat& top_blob, const
                     "pld        [%12, #64]         \n"
                     "vld1.s8    {d7}, [%12 :64]!   \n" //r7
 
-                    "vst1.32    {d20-d23}, [%4:128]!\n"
+                    "vst1.32    {d20-d23}, [%4:128]!\n" //outptr3_s32
 
                     //next
                     "subs       %0, #1              \n"
@@ -1209,7 +1190,6 @@ static void conv1x1s1_neon_s8_left4(const Mat& bottom_blob, Mat& top_blob, const
                   "12"(r7)
                 : "cc", "memory", "q0", "q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8", "q10", "q11"
             );
-
         }
 
         for (; q<inch; q++)
