@@ -45,7 +45,15 @@ int ReLU_arm::forward_inplace_int8(Mat& bottom_top_blob, const Option& opt) cons
 
 #if __ARM_NEON
 #if __aarch64__
-            // TODO
+            int8x16_t _zero = vdupq_n_s8(0);
+            for (; nn>0; nn--)
+            {
+                int8x16_t _p = vld1q_s8(ptr);
+                _p = vmaxq_s8(_p, _zero);
+                vst1q_s8(ptr, _p);
+
+                ptr += 16;
+            }
 #else
             if (nn > 0)
             {
@@ -87,7 +95,7 @@ int ReLU_arm::forward_inplace_int8(Mat& bottom_top_blob, const Option& opt) cons
 int ReLU_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) const
 {
     if (use_int8_inference)
-        return ReLU_arm::forward_inplace_int8(bottom_top_blob, opt);    
+        return ReLU_arm::forward_inplace_int8(bottom_top_blob, opt);
 
     int w = bottom_top_blob.w;
     int h = bottom_top_blob.h;
