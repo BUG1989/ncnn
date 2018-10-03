@@ -40,12 +40,8 @@ DEFINE_LAYER_CREATOR(Requantize_arm)
 
 int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) const
 { 
-    //double start = ncnn::get_current_time();
 
-#if __aarch64__
-    // TODO port to aarch64 fcvtas
-    return Requantize::forward(bottom_blob, top_blob, opt);
-#endif // __aarch64__
+    // double start = ncnn::get_current_time();
 
 #if !__aarch64__
     int FPSCR_value = 0;
@@ -176,7 +172,50 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
 
 #if __ARM_NEON
 #if __aarch64__
+                float32x4_t _bias_tm = vdupq_n_f32(bias_tm);
+                float32x4_t _scale_out = vdupq_n_f32(scale_out);
+
                 // TODO
+                for (; nn>0; nn--)
+                {
+                    // load top_s32
+                    int32x4_t _out0_s32 = vld1q_s32(intptr);
+                    int32x4_t _out0n_s32 = vld1q_s32(intptr+4);
+
+                    // top_s32 -> top_f32
+                    float32x4_t _out0_f32 = vcvtq_f32_s32(_out0_s32);
+                    float32x4_t _out0n_f32 = vcvtq_f32_s32(_out0n_s32);
+
+                    // top_f32 = top_f32 + bias_tm
+                    _out0_f32 = vaddq_f32(_out0_f32, _bias_tm);
+                    _out0n_f32 = vaddq_f32(_out0n_f32, _bias_tm);
+
+                    // top_f32 = top_f32 * scale_out
+                    _out0_f32 = vmulq_f32(_out0_f32, _scale_out);
+                    _out0n_f32 = vmulq_f32(_out0n_f32, _scale_out);
+
+                    // top_f32 -> top_s32
+                    _out0_s32[0] = vcvtas_s32_f32(_out0_f32[0]);
+                    _out0_s32[1] = vcvtas_s32_f32(_out0_f32[1]);
+                    _out0_s32[2] = vcvtas_s32_f32(_out0_f32[2]);
+                    _out0_s32[3] = vcvtas_s32_f32(_out0_f32[3]);
+                    _out0n_s32[0] = vcvtas_s32_f32(_out0n_f32[0]);
+                    _out0n_s32[1] = vcvtas_s32_f32(_out0n_f32[1]);
+                    _out0n_s32[2] = vcvtas_s32_f32(_out0n_f32[2]);
+                    _out0n_s32[3] = vcvtas_s32_f32(_out0n_f32[3]);
+
+                    // top_s32 -> top_s16
+                    int16x8_t _out0_s16 = vcombine_s16(vqmovn_s32(_out0_s32), vqmovn_s32(_out0n_s32));
+
+                    // top_s16 -> top_s8
+                    int8x8_t _out0_s8 = vqmovn_s16(_out0_s16);
+
+                    // save top_s8
+                    vst1_s8(ptr, _out0_s8);
+
+                    intptr += 8;
+                    ptr += 8;
+                }
 #else
                 if (nn > 0)
                 {
@@ -265,7 +304,45 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
 
 #if __ARM_NEON
 #if __aarch64__
+                float32x4_t _scale_out = vdupq_n_f32(scale_out);
+
                 // TODO
+                for (; nn>0; nn--)
+                {
+                    // load top_s32
+                    int32x4_t out0_s32 = vld1q_s32(intptr);
+                    int32x4_t out0n_s32 = vld1q_s32(intptr+4);
+
+                    // top_s32 -> top_f32
+                    float32x4_t out0_f32 = vcvtq_f32_s32(out0_s32);
+                    float32x4_t out0n_f32 = vcvtq_f32_s32(out0n_s32);
+
+                    // top_f32 = top_f32 * scale_out
+                    out0_f32 = vmulq_f32(out0_f32, _scale_out);
+                    out0n_f32 = vmulq_f32(out0n_f32, _scale_out);
+
+                    // top_f32 -> top_s32
+                    out0_s32[0] = vcvtas_s32_f32(out0_f32[0]);
+                    out0_s32[1] = vcvtas_s32_f32(out0_f32[1]);
+                    out0_s32[2] = vcvtas_s32_f32(out0_f32[2]);
+                    out0_s32[3] = vcvtas_s32_f32(out0_f32[3]);
+                    out0n_s32[0] = vcvtas_s32_f32(out0n_f32[0]);
+                    out0n_s32[1] = vcvtas_s32_f32(out0n_f32[1]);
+                    out0n_s32[2] = vcvtas_s32_f32(out0n_f32[2]);
+                    out0n_s32[3] = vcvtas_s32_f32(out0n_f32[3]);
+
+                    // top_s32 -> top_s16
+                    int16x8_t out0_s16 = vcombine_s16(vqmovn_s32(out0_s32), vqmovn_s32(out0n_s32));
+
+                    // top_s16 -> top_s8
+                    int8x8_t out0_s8 = vqmovn_s16(out0_s16);
+
+                    // save top_s8
+                    vst1_s8(ptr, out0_s8);
+
+                    intptr += 8;
+                    ptr += 8;
+                }
 #else
                 if (nn > 0)
                 {
