@@ -150,51 +150,35 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
 
     const signed char* kernel = _kernel;
     
-    int nn_outch = outch >> 3;
-    int remain_outch_start = nn_outch << 3; 
+    int nn_outch = outch >> 2;
+    int remain_outch_start = nn_outch << 2; 
 
     #pragma omp parallel for num_threads(opt.num_threads)
     for (int pp=0; pp < nn_outch; pp++)
     {
-        int p = pp * 8;
+        int p = pp * 4;
 
         Mat out0 = top_blob.channel(p);
         Mat out1 = top_blob.channel(p + 1);
         Mat out2 = top_blob.channel(p + 2);
-        Mat out3 = top_blob.channel(p + 3);
-        Mat out4 = top_blob.channel(p + 4);
-        Mat out5 = top_blob.channel(p + 5);
-        Mat out6 = top_blob.channel(p + 6);
-        Mat out7 = top_blob.channel(p + 7);        
+        Mat out3 = top_blob.channel(p + 3);       
         
         out0.fill(0.f);
         out1.fill(0.f);
         out2.fill(0.f);
-        out3.fill(0.f);
-        out4.fill(0.f);
-        out5.fill(0.f);
-        out6.fill(0.f);
-        out7.fill(0.f);        
+        out3.fill(0.f);       
 
         const signed char* kernel0 = (const signed char*)kernel + p * inch * 9;
         const signed char* kernel1 = (const signed char*)kernel + (p + 1) * inch * 9;
         const signed char* kernel2 = (const signed char*)kernel + (p + 2) * inch * 9;
-        const signed char* kernel3 = (const signed char*)kernel + (p + 3) * inch * 9;
-        const signed char* kernel4 = (const signed char*)kernel + (p + 4) * inch * 9;
-        const signed char* kernel5 = (const signed char*)kernel + (p + 5) * inch * 9;
-        const signed char* kernel6 = (const signed char*)kernel + (p + 6) * inch * 9;
-        const signed char* kernel7 = (const signed char*)kernel + (p + 7) * inch * 9;              
+        const signed char* kernel3 = (const signed char*)kernel + (p + 3) * inch * 9;              
 
         for (int q=0; q<inch; q++)
         {
             int* outptr0 = out0;
             int* outptr1 = out1;
             int* outptr2 = out2;
-            int* outptr3 = out3;
-            int* outptr4 = out4;
-            int* outptr5 = out5;
-            int* outptr6 = out6;
-            int* outptr7 = out7;                
+            int* outptr3 = out3;                
 
             const signed char* img0 = bottom_blob.channel(q);
 
@@ -221,55 +205,31 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     int8x8_t _k1 = vdup_n_s8(kernel1[0]);
                     int8x8_t _k2 = vdup_n_s8(kernel2[0]);
                     int8x8_t _k3 = vdup_n_s8(kernel3[0]);
-                    int8x8_t _k4 = vdup_n_s8(kernel4[0]);
-                    int8x8_t _k5 = vdup_n_s8(kernel5[0]);
-                    int8x8_t _k6 = vdup_n_s8(kernel6[0]);
-                    int8x8_t _k7 = vdup_n_s8(kernel7[0]);
 
                     int16x8_t _sum0 = vmull_s8(_r00, _k0);
                     int16x8_t _sum1 = vmull_s8(_r00, _k1);
                     int16x8_t _sum2 = vmull_s8(_r00, _k2);
-                    int16x8_t _sum3 = vmull_s8(_r00, _k3);
-                    int16x8_t _sum4 = vmull_s8(_r00, _k4);
-                    int16x8_t _sum5 = vmull_s8(_r00, _k5);
-                    int16x8_t _sum6 = vmull_s8(_r00, _k6);
-                    int16x8_t _sum7 = vmull_s8(_r00, _k7);                    
+                    int16x8_t _sum3 = vmull_s8(_r00, _k3);                   
 
                     _k0 = vdup_n_s8(kernel0[1]);
                     _k1 = vdup_n_s8(kernel1[1]);
                     _k2 = vdup_n_s8(kernel2[1]);
-                    _k3 = vdup_n_s8(kernel3[1]);
-                    _k4 = vdup_n_s8(kernel4[1]);
-                    _k5 = vdup_n_s8(kernel5[1]);
-                    _k6 = vdup_n_s8(kernel6[1]);
-                    _k7 = vdup_n_s8(kernel7[1]);                                      
+                    _k3 = vdup_n_s8(kernel3[1]);                                     
 
                     _sum0 = vmlal_s8(_sum0, _r01, _k0);
                     _sum1 = vmlal_s8(_sum1, _r01, _k1);
                     _sum2 = vmlal_s8(_sum2, _r01, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r01, _k3);
-                    _sum4 = vmlal_s8(_sum4, _r01, _k4);
-                    _sum5 = vmlal_s8(_sum5, _r01, _k5);
-                    _sum6 = vmlal_s8(_sum6, _r01, _k6);
-                    _sum7 = vmlal_s8(_sum7, _r01, _k7);                    
+                    _sum3 = vmlal_s8(_sum3, _r01, _k3);                  
 
                     _k0 = vdup_n_s8(kernel0[2]);
                     _k1 = vdup_n_s8(kernel1[2]);
                     _k2 = vdup_n_s8(kernel2[2]);
-                    _k3 = vdup_n_s8(kernel3[2]); 
-                    _k4 = vdup_n_s8(kernel4[2]);
-                    _k5 = vdup_n_s8(kernel5[2]);
-                    _k6 = vdup_n_s8(kernel6[2]);
-                    _k7 = vdup_n_s8(kernel7[2]);                                        
+                    _k3 = vdup_n_s8(kernel3[2]);                                         
 
                     _sum0 = vmlal_s8(_sum0, _r02, _k0);
                     _sum1 = vmlal_s8(_sum1, _r02, _k1);
                     _sum2 = vmlal_s8(_sum2, _r02, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r02, _k3);
-                    _sum4 = vmlal_s8(_sum4, _r02, _k4);
-                    _sum5 = vmlal_s8(_sum5, _r02, _k5);
-                    _sum6 = vmlal_s8(_sum6, _r02, _k6);
-                    _sum7 = vmlal_s8(_sum7, _r02, _k7);                    
+                    _sum3 = vmlal_s8(_sum3, _r02, _k3);                   
 
                     int8x8x2_t _r1 = vld2_s8(r1);
                     int8x8x2_t _r1n = vld2_s8(r1+16);
@@ -280,56 +240,32 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     _k0 = vdup_n_s8(kernel0[3]);
                     _k1 = vdup_n_s8(kernel1[3]);
                     _k2 = vdup_n_s8(kernel2[3]);
-                    _k3 = vdup_n_s8(kernel3[3]);
-                    _k4 = vdup_n_s8(kernel4[3]);
-                    _k5 = vdup_n_s8(kernel5[3]);
-                    _k6 = vdup_n_s8(kernel6[3]);
-                    _k7 = vdup_n_s8(kernel7[3]);                    
+                    _k3 = vdup_n_s8(kernel3[3]);                  
 
                     _sum0 = vmlal_s8(_sum0, _r10, _k0);
                     _sum1 = vmlal_s8(_sum1, _r10, _k1);
                     _sum2 = vmlal_s8(_sum2, _r10, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r10, _k3);
-                    _sum4 = vmlal_s8(_sum4, _r10, _k4);
-                    _sum5 = vmlal_s8(_sum5, _r10, _k5);
-                    _sum6 = vmlal_s8(_sum6, _r10, _k6);
-                    _sum7 = vmlal_s8(_sum7, _r10, _k7);                    
+                    _sum3 = vmlal_s8(_sum3, _r10, _k3);                    
 
                     _k0 = vdup_n_s8(kernel0[4]);
                     _k1 = vdup_n_s8(kernel1[4]);
                     _k2 = vdup_n_s8(kernel2[4]);
-                    _k3 = vdup_n_s8(kernel3[4]);
-                    _k4 = vdup_n_s8(kernel4[4]);
-                    _k5 = vdup_n_s8(kernel5[4]);
-                    _k6 = vdup_n_s8(kernel6[4]);
-                    _k7 = vdup_n_s8(kernel7[4]);                    
+                    _k3 = vdup_n_s8(kernel3[4]);                    
 
                     _sum0 = vmlal_s8(_sum0, _r11, _k0);
                     _sum1 = vmlal_s8(_sum1, _r11, _k1);
                     _sum2 = vmlal_s8(_sum2, _r11, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r11, _k3);
-                    _sum4 = vmlal_s8(_sum4, _r11, _k4);
-                    _sum5 = vmlal_s8(_sum5, _r11, _k5);
-                    _sum6 = vmlal_s8(_sum6, _r11, _k6);
-                    _sum7 = vmlal_s8(_sum7, _r11, _k7);                    
+                    _sum3 = vmlal_s8(_sum3, _r11, _k3);                    
 
                     _k0 = vdup_n_s8(kernel0[5]);
                     _k1 = vdup_n_s8(kernel1[5]);
                     _k2 = vdup_n_s8(kernel2[5]);
-                    _k3 = vdup_n_s8(kernel3[5]);
-                    _k4 = vdup_n_s8(kernel4[5]);
-                    _k5 = vdup_n_s8(kernel5[5]);
-                    _k6 = vdup_n_s8(kernel6[5]);
-                    _k7 = vdup_n_s8(kernel7[5]);                    
+                    _k3 = vdup_n_s8(kernel3[5]);                   
 
                     _sum0 = vmlal_s8(_sum0, _r12, _k0);
                     _sum1 = vmlal_s8(_sum1, _r12, _k1);
                     _sum2 = vmlal_s8(_sum2, _r12, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r12, _k3);
-                    _sum4 = vmlal_s8(_sum4, _r12, _k4);
-                    _sum5 = vmlal_s8(_sum5, _r12, _k5);
-                    _sum6 = vmlal_s8(_sum6, _r12, _k6);
-                    _sum7 = vmlal_s8(_sum7, _r12, _k7);                    
+                    _sum3 = vmlal_s8(_sum3, _r12, _k3);                   
 
                     int8x8x2_t _r2 = vld2_s8(r2);
                     int8x8x2_t _r2n = vld2_s8(r2+16);
@@ -340,56 +276,32 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     _k0 = vdup_n_s8(kernel0[6]);
                     _k1 = vdup_n_s8(kernel1[6]);
                     _k2 = vdup_n_s8(kernel2[6]);
-                    _k3 = vdup_n_s8(kernel3[6]);
-                    _k4 = vdup_n_s8(kernel4[6]);
-                    _k5 = vdup_n_s8(kernel5[6]);
-                    _k6 = vdup_n_s8(kernel6[6]);
-                    _k7 = vdup_n_s8(kernel7[6]);                    
+                    _k3 = vdup_n_s8(kernel3[6]);                    
 
                     _sum0 = vmlal_s8(_sum0, _r20, _k0);
                     _sum1 = vmlal_s8(_sum1, _r20, _k1);
                     _sum2 = vmlal_s8(_sum2, _r20, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r20, _k3);
-                    _sum4 = vmlal_s8(_sum4, _r20, _k4);
-                    _sum5 = vmlal_s8(_sum5, _r20, _k5);
-                    _sum6 = vmlal_s8(_sum6, _r20, _k6);
-                    _sum7 = vmlal_s8(_sum7, _r20, _k7);              
+                    _sum3 = vmlal_s8(_sum3, _r20, _k3);              
 
                     _k0 = vdup_n_s8(kernel0[7]);
                     _k1 = vdup_n_s8(kernel1[7]);
                     _k2 = vdup_n_s8(kernel2[7]);
-                    _k3 = vdup_n_s8(kernel3[7]);
-                    _k4 = vdup_n_s8(kernel4[7]);
-                    _k5 = vdup_n_s8(kernel5[7]);
-                    _k6 = vdup_n_s8(kernel6[7]);
-                    _k7 = vdup_n_s8(kernel7[7]);                                       
+                    _k3 = vdup_n_s8(kernel3[7]);                                      
 
                     _sum0 = vmlal_s8(_sum0, _r21, _k0);
                     _sum1 = vmlal_s8(_sum1, _r21, _k1);
                     _sum2 = vmlal_s8(_sum2, _r21, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r21, _k3);
-                    _sum4 = vmlal_s8(_sum4, _r21, _k4);
-                    _sum5 = vmlal_s8(_sum5, _r21, _k5);
-                    _sum6 = vmlal_s8(_sum6, _r21, _k6);
-                    _sum7 = vmlal_s8(_sum7, _r21, _k7);                    
+                    _sum3 = vmlal_s8(_sum3, _r21, _k3);                  
 
                     _k0 = vdup_n_s8(kernel0[8]);
                     _k1 = vdup_n_s8(kernel1[8]);
                     _k2 = vdup_n_s8(kernel2[8]);
-                    _k3 = vdup_n_s8(kernel3[8]);
-                    _k4 = vdup_n_s8(kernel4[8]);
-                    _k5 = vdup_n_s8(kernel5[8]);
-                    _k6 = vdup_n_s8(kernel6[8]);
-                    _k7 = vdup_n_s8(kernel7[8]);                    
+                    _k3 = vdup_n_s8(kernel3[8]);                  
 
                     _sum0 = vmlal_s8(_sum0, _r22, _k0);
                     _sum1 = vmlal_s8(_sum1, _r22, _k1);
                     _sum2 = vmlal_s8(_sum2, _r22, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r22, _k3);
-                    _sum4 = vmlal_s8(_sum4, _r22, _k4);
-                    _sum5 = vmlal_s8(_sum5, _r22, _k5);
-                    _sum6 = vmlal_s8(_sum6, _r22, _k6);
-                    _sum7 = vmlal_s8(_sum7, _r22, _k7);                    
+                    _sum3 = vmlal_s8(_sum3, _r22, _k3);                   
 
                     int32x4_t sum0_s32 = vld1q_s32(outptr0);
                     int32x4_t sum0n_s32 = vld1q_s32(outptr0+4);
@@ -425,44 +337,7 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     sum3n_s32 = vaddw_s16(sum3n_s32, vget_high_s16(_sum3));                    
 
                     vst1q_s32(outptr3, sum3_s32);
-                    vst1q_s32(outptr3+4, sum3n_s32);
-
-                    ///
-                    sum0_s32 = vld1q_s32(outptr4);
-                    sum0n_s32 = vld1q_s32(outptr4+4);
-
-                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum4));
-                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum4));                    
-
-                    vst1q_s32(outptr4, sum0_s32);
-                    vst1q_s32(outptr4+4, sum0n_s32);
-
-                    sum1_s32 = vld1q_s32(outptr5);
-                    sum1n_s32 = vld1q_s32(outptr5+4);
-
-                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum5));
-                    sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum5));                    
-
-                    vst1q_s32(outptr5, sum1_s32);
-                    vst1q_s32(outptr5+4, sum1n_s32);
-
-                    sum2_s32 = vld1q_s32(outptr6);
-                    sum2n_s32 = vld1q_s32(outptr6+4);
-
-                    sum2_s32 = vaddw_s16(sum2_s32, vget_low_s16(_sum6));
-                    sum2n_s32 = vaddw_s16(sum2n_s32, vget_high_s16(_sum6));         
-
-                    vst1q_s32(outptr6, sum2_s32);
-                    vst1q_s32(outptr6+4, sum2n_s32);
-
-                    sum3_s32 = vld1q_s32(outptr7);
-                    sum3n_s32 = vld1q_s32(outptr7+4);
-
-                    sum3_s32 = vaddw_s16(sum3_s32, vget_low_s16(_sum7));
-                    sum3n_s32 = vaddw_s16(sum3n_s32, vget_high_s16(_sum7));                    
-
-                    vst1q_s32(outptr7, sum3_s32);
-                    vst1q_s32(outptr7+4, sum3n_s32);                    
+                    vst1q_s32(outptr3+4, sum3n_s32);                   
 
                     r0 += 16;
                     r1 += 16;
@@ -470,11 +345,7 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     outptr0 += 8;
                     outptr1 += 8;
                     outptr2 += 8;
-                    outptr3 += 8;
-                    outptr4 += 8;
-                    outptr5 += 8;
-                    outptr6 += 8;
-                    outptr7 += 8;                         
+                    outptr3 += 8;                        
                 }
 
                 for (; remain>0; remain--)
@@ -482,11 +353,7 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     int sum0 = 0;
                     int sum1 = 0;
                     int sum2 = 0;
-                    int sum3 = 0;
-                    int sum4 = 0;
-                    int sum5 = 0;
-                    int sum6 = 0;
-                    int sum7 = 0;                                     
+                    int sum3 = 0;                                   
                 
                     sum0 += (int)r0[0] * kernel0[0];
                     sum0 += (int)r0[1] * kernel0[1];
@@ -526,56 +393,12 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     sum3 += (int)r1[2] * kernel3[5];
                     sum3 += (int)r2[0] * kernel3[6];
                     sum3 += (int)r2[1] * kernel3[7];
-                    sum3 += (int)r2[2] * kernel3[8];
-
-                    sum4 += (int)r0[0] * kernel4[0];
-                    sum4 += (int)r0[1] * kernel4[1];
-                    sum4 += (int)r0[2] * kernel4[2];
-                    sum4 += (int)r1[0] * kernel4[3];
-                    sum4 += (int)r1[1] * kernel4[4];
-                    sum4 += (int)r1[2] * kernel4[5];
-                    sum4 += (int)r2[0] * kernel4[6];
-                    sum4 += (int)r2[1] * kernel4[7];
-                    sum4 += (int)r2[2] * kernel4[8];
-
-                    sum5 += (int)r0[0] * kernel5[0];
-                    sum5 += (int)r0[1] * kernel5[1];
-                    sum5 += (int)r0[2] * kernel5[2];
-                    sum5 += (int)r1[0] * kernel5[3];
-                    sum5 += (int)r1[1] * kernel5[4];
-                    sum5 += (int)r1[2] * kernel5[5];
-                    sum5 += (int)r2[0] * kernel5[6];
-                    sum5 += (int)r2[1] * kernel5[7];
-                    sum5 += (int)r2[2] * kernel5[8];
-
-                    sum6 += (int)r0[0] * kernel6[0];
-                    sum6 += (int)r0[1] * kernel6[1];
-                    sum6 += (int)r0[2] * kernel6[2];
-                    sum6 += (int)r1[0] * kernel6[3];
-                    sum6 += (int)r1[1] * kernel6[4];
-                    sum6 += (int)r1[2] * kernel6[5];
-                    sum6 += (int)r2[0] * kernel6[6];
-                    sum6 += (int)r2[1] * kernel6[7];
-                    sum6 += (int)r2[2] * kernel6[8];
-
-                    sum7 += (int)r0[0] * kernel7[0];
-                    sum7 += (int)r0[1] * kernel7[1];
-                    sum7 += (int)r0[2] * kernel7[2];
-                    sum7 += (int)r1[0] * kernel7[3];
-                    sum7 += (int)r1[1] * kernel7[4];
-                    sum7 += (int)r1[2] * kernel7[5];
-                    sum7 += (int)r2[0] * kernel7[6];
-                    sum7 += (int)r2[1] * kernel7[7];
-                    sum7 += (int)r2[2] * kernel7[8];                                                                                                                   
+                    sum3 += (int)r2[2] * kernel3[8];                                                                                                                   
                 
                     *outptr0 += sum0;
                     *outptr1 += sum1;
                     *outptr2 += sum2;
-                    *outptr3 += sum3;
-                    *outptr4 += sum4;
-                    *outptr5 += sum5;
-                    *outptr6 += sum6;
-                    *outptr7 += sum7;                                       
+                    *outptr3 += sum3;                                      
 
                     r0 += 2;
                     r1 += 2;
@@ -583,11 +406,7 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     outptr0++;
                     outptr1++;
                     outptr2++;
-                    outptr3++;
-                    outptr4++;
-                    outptr5++;
-                    outptr6++;
-                    outptr7++;                                      
+                    outptr3++;                                     
                 }       
 
                 r0 += tailstep;
@@ -598,11 +417,7 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
             kernel0 += 9;
             kernel1 += 9;
             kernel2 += 9;
-            kernel3 += 9;
-            kernel4 += 9;
-            kernel5 += 9;
-            kernel6 += 9;
-            kernel7 += 9;                       
+            kernel3 += 9;                      
         }
     }
 
