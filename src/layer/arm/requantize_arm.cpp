@@ -175,7 +175,6 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                 float32x4_t _bias_tm = vdupq_n_f32(bias_tm);
                 float32x4_t _scale_out = vdupq_n_f32(scale_out);
 
-                // TODO
                 for (; nn>0; nn--)
                 {
                     // load top_s32

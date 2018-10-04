@@ -31,11 +31,6 @@ static inline signed char float2int8(float v)
 
 int Quantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) const
 {
-#if __aarch64__
-    // TODO port to aarch64 fcvtas
-    return Quantize::forward(bottom_blob, top_blob, opt);
-#endif // __aarch64__
-
 #if !__aarch64__
     int FPSCR_value = 0;
 
@@ -115,7 +110,41 @@ int Quantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option& o
 
 #if __ARM_NEON
 #if __aarch64__
-            // TODO
+            float32x4_t _scale = vdupq_n_f32(scale);
+
+            for (; nn > 0; nn--)
+            {
+                // load bottom_f32
+                float32x4_t _out0_f32 = vld1q_f32(ptr);
+                float32x4_t _out0n_f32 = vld1q_f32(ptr+4);
+
+                // bottom_f32 = bottom_f32 * scale
+                _out0_f32 = vmulq_f32(_out0_f32, _scale);
+                _out0n_f32 = vmulq_f32(_out0n_f32, _scale); 
+
+                // bottom_f32 -> bottom_s32
+                int32x4_t _out0_s32, _out0n_s32;
+                _out0_s32[0] = vcvtas_s32_f32(_out0_f32[0]);
+                _out0_s32[1] = vcvtas_s32_f32(_out0_f32[1]);
+                _out0_s32[2] = vcvtas_s32_f32(_out0_f32[2]);
+                _out0_s32[3] = vcvtas_s32_f32(_out0_f32[3]);
+                _out0n_s32[0] = vcvtas_s32_f32(_out0n_f32[0]);
+                _out0n_s32[1] = vcvtas_s32_f32(_out0n_f32[1]);
+                _out0n_s32[2] = vcvtas_s32_f32(_out0n_f32[2]);
+                _out0n_s32[3] = vcvtas_s32_f32(_out0n_f32[3]);
+
+                // bottom_s32 -> bottom_s16
+                int16x8_t _out0_s16 = vcombine_s16(vqmovn_s32(_out0_s32), vqmovn_s32(_out0n_s32));
+
+                // bottom_s16 -> bottom_s8
+                int8x8_t _out0_s8 = vqmovn_s16(_out0_s16);
+
+                // save bottom_s8
+                vst1_s8(outptr, _out0_s8);
+
+                ptr += 8;
+                outptr += 8;
+            }
 #else
             if (nn > 0)
             {

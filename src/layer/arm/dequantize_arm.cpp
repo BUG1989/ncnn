@@ -21,11 +21,6 @@ DEFINE_LAYER_CREATOR(Dequantize_arm)
 
 int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) const
 {
-#if __aarch64__
-    // TODO port to aarch64
-    return Dequantize::forward_inplace(bottom_top_blob, opt);
-#endif // __aarch64__
-
     int dims = bottom_top_blob.dims;
 
     if (dims == 1)
@@ -116,7 +111,34 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
 
 #if __ARM_NEON
 #if __aarch64__
-                // TODO
+                float32x4_t _bias = vdupq_n_f32(bias);
+                float32x4_t _scale = vdupq_n_f32(scale);
+
+                for (; nn>0; nn--)
+                {
+                    // load top_s32
+                    int32x4_t _out0_s32 = vld1q_s32(intptr);
+                    int32x4_t _out0n_s32 = vld1q_s32(intptr+4);
+
+                    // top_s32 -> top_f32
+                    float32x4_t _out0_f32 = vcvtq_f32_s32(_out0_s32);
+                    float32x4_t _out0n_f32 = vcvtq_f32_s32(_out0n_s32);
+
+                    // top_f32 = top_f32 * scale_out
+                    _out0_f32 = vmulq_f32(_out0_f32, _scale);
+                    _out0n_f32 = vmulq_f32(_out0n_f32, _scale);
+
+                    // top_f32 = top_f32 + bias_tm
+                    _out0_f32 = vaddq_f32(_out0_f32, _bias);
+                    _out0n_f32 = vaddq_f32(_out0n_f32, _bias);
+
+                    // save top_f32
+                    vst1q_f32(ptr, _out0_f32);
+                    vst1q_f32(ptr+4, _out0n_f32);
+
+                    intptr += 8;
+                    ptr += 8;
+                }                
 #else
                 if (nn > 0)
                 {

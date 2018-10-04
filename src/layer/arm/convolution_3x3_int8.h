@@ -73,38 +73,590 @@ static void conv3x3s1_transform_kernel_int8_neon(const Mat& _kernel, Mat& kernel
 static void conv3x3s1_int8_neon(const Mat &bottom_blob, Mat &top_blob, const Mat &_kernel, const Option& opt)
 {
     int w = bottom_blob.w;
+    int h = bottom_blob.h;
     int inch = bottom_blob.c;
 
     int outw = top_blob.w;
     int outh = top_blob.h;
     int outch = top_blob.c;
 
-    const signed char *kernel = _kernel;
+    const signed char* kernel = _kernel;
+
+    int nn_outch = outch >> 1;
+    int remain_outch_start = nn_outch << 1; 
 
     #pragma omp parallel for num_threads(opt.num_threads)
-    for (int p = 0; p < outch; p++)
+    for (int pp=0; pp < nn_outch; pp++)
+    {
+        int p = pp * 2;
+
+        Mat out0 = top_blob.channel(p);
+        Mat out1 = top_blob.channel(p+1);
+
+        out0.fill(0);
+        out1.fill(0);
+
+        const signed char* kernel0 = (const signed char *)kernel + p * inch * 9;
+        const signed char* kernel1 = (const signed char *)kernel + (p + 1) * inch * 9;
+        
+        for (int q=0; q<inch; q++)
+        {
+            int* outptr0 = out0;
+            int* outptr1 = out1;
+            int* outptr0n = outptr0 + outw;
+            int* outptr1n = outptr1 + outw;
+        
+            const signed char* img0 = bottom_blob.channel(q);
+
+            const signed char* r0 = img0;
+            const signed char* r1 = img0 + w;
+            const signed char* r2 = img0 + w * 2;
+            const signed char* r3 = img0 + w * 3;
+
+            const signed char* k00 = kernel0;
+            const signed char* k03 = kernel0 + 3;
+            const signed char* k06 = kernel0 + 6;
+            const signed char* k10 = kernel1;
+            const signed char* k13 = kernel1 + 3;
+            const signed char* k16 = kernel1 + 6;
+
+            int i = 0;
+
+            int8x8_t _k00 = vdup_n_s8(kernel0[0]);
+            int8x8_t _k01 = vdup_n_s8(kernel0[1]);
+            int8x8_t _k02 = vdup_n_s8(kernel0[2]);
+            int8x8_t _k03 = vdup_n_s8(kernel0[3]);
+            int8x8_t _k04 = vdup_n_s8(kernel0[4]);
+            int8x8_t _k05 = vdup_n_s8(kernel0[5]);
+            int8x8_t _k06 = vdup_n_s8(kernel0[6]);
+            int8x8_t _k07 = vdup_n_s8(kernel0[7]);
+            int8x8_t _k08 = vdup_n_s8(kernel0[8]);
+
+            int8x8_t _k10 = vdup_n_s8(kernel1[0]);
+            int8x8_t _k11 = vdup_n_s8(kernel1[1]);
+            int8x8_t _k12 = vdup_n_s8(kernel1[2]);
+            int8x8_t _k13 = vdup_n_s8(kernel1[3]);
+            int8x8_t _k14 = vdup_n_s8(kernel1[4]);
+            int8x8_t _k15 = vdup_n_s8(kernel1[5]);
+            int8x8_t _k16 = vdup_n_s8(kernel1[6]);
+            int8x8_t _k17 = vdup_n_s8(kernel1[7]);
+            int8x8_t _k18 = vdup_n_s8(kernel1[8]); 
+
+            for (; i+1 < outh; i+=2)
+            {
+                int nn = outw >> 3;
+                int remain = outw & 7;               
+
+                for (; nn > 0; nn--)
+                {
+                    // outch 0
+                    int8x8_t _r0 = vld1_s8(r0);
+                    int8x8_t _r0n = vld1_s8(r0+8);
+                    int8x8_t _r01 = vext_s8(_r0, _r0n, 1);
+                    int8x8_t _r02 = vext_s8(_r0, _r0n, 2);
+
+                    int16x8_t _sum0 = vmull_s8(_r0, _k00);
+                    _sum0 = vmlal_s8(_sum0, _r01, _k01);
+                    _sum0 = vmlal_s8(_sum0, _r02, _k02);
+
+                    int8x8_t _r1 = vld1_s8(r1);
+                    int8x8_t _r1n = vld1_s8(r1+8);
+                    int8x8_t _r11 = vext_s8(_r1, _r1n, 1);
+                    int8x8_t _r12 = vext_s8(_r1, _r1n, 2);
+                    _sum0 = vmlal_s8(_sum0, _r1, _k03);
+                    _sum0 = vmlal_s8(_sum0, _r11, _k04);
+                    _sum0 = vmlal_s8(_sum0, _r12, _k05);
+
+                    int16x8_t _sum1 = vmull_s8(_r1, _k00);
+                    _sum1 = vmlal_s8(_sum1, _r11, _k01);
+                    _sum1 = vmlal_s8(_sum1, _r12, _k02);
+
+                    int8x8_t _r2 = vld1_s8(r2);
+                    int8x8_t _r2n = vld1_s8(r2+8);
+                    int8x8_t _r21 = vext_s8(_r2, _r2n, 1);
+                    int8x8_t _r22 = vext_s8(_r2, _r2n, 2);
+                    _sum0 = vmlal_s8(_sum0, _r2, _k06);
+                    _sum0 = vmlal_s8(_sum0, _r21, _k07);
+                    _sum0 = vmlal_s8(_sum0, _r22, _k08);
+
+                    _sum1 = vmlal_s8(_sum1, _r2, _k03);
+                    _sum1 = vmlal_s8(_sum1, _r21, _k04);
+                    _sum1 = vmlal_s8(_sum1, _r22, _k05);                
+
+                    int8x8_t _r3 = vld1_s8(r3);
+                    int8x8_t _r3n = vld1_s8(r3+8);
+                    int8x8_t _r31 = vext_s8(_r3, _r3n, 1);
+                    int8x8_t _r32 = vext_s8(_r3, _r3n, 2);
+                    _sum1 = vmlal_s8(_sum1, _r3, _k06);
+                    _sum1 = vmlal_s8(_sum1, _r31, _k07);
+                    _sum1 = vmlal_s8(_sum1, _r32, _k08);
+
+                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
+                    int32x4_t sum0n_s32 = vld1q_s32(outptr0+4);
+
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));                    
+
+                    vst1q_s32(outptr0, sum0_s32);
+                    vst1q_s32(outptr0+4, sum0n_s32);
+
+                    int32x4_t sum1_s32 = vld1q_s32(outptr0n);
+                    int32x4_t sum1n_s32 = vld1q_s32(outptr0n+4);
+
+                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
+                    sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1));                    
+
+                    vst1q_s32(outptr0n, sum1_s32);
+                    vst1q_s32(outptr0n+4, sum1n_s32);
+
+                    // outch 1
+                    _sum0 = vmull_s8(_r0, _k10);
+                    _sum0 = vmlal_s8(_sum0, _r01, _k11);
+                    _sum0 = vmlal_s8(_sum0, _r02, _k12);
+
+                    _sum0 = vmlal_s8(_sum0, _r1, _k13);
+                    _sum0 = vmlal_s8(_sum0, _r11, _k14);
+                    _sum0 = vmlal_s8(_sum0, _r12, _k15);
+
+                    _sum0 = vmlal_s8(_sum0, _r2, _k16);
+                    _sum0 = vmlal_s8(_sum0, _r21, _k17);
+                    _sum0 = vmlal_s8(_sum0, _r22, _k18);
+
+                    _sum1 = vmull_s8(_r1, _k10);
+                    _sum1 = vmlal_s8(_sum1, _r11, _k11);
+                    _sum1 = vmlal_s8(_sum1, _r12, _k12);
+
+                    _sum1 = vmlal_s8(_sum1, _r2, _k13);
+                    _sum1 = vmlal_s8(_sum1, _r21, _k14);
+                    _sum1 = vmlal_s8(_sum1, _r22, _k15);                
+
+                    _sum1 = vmlal_s8(_sum1, _r3, _k16);
+                    _sum1 = vmlal_s8(_sum1, _r31, _k17);
+                    _sum1 = vmlal_s8(_sum1, _r32, _k18);
+
+                    sum0_s32 = vld1q_s32(outptr1);
+                    sum0n_s32 = vld1q_s32(outptr1+4);
+
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));                    
+
+                    vst1q_s32(outptr1, sum0_s32);
+                    vst1q_s32(outptr1+4, sum0n_s32);
+
+                    sum1_s32 = vld1q_s32(outptr1n);
+                    sum1n_s32 = vld1q_s32(outptr1n+4);
+
+                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
+                    sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1));                    
+
+                    vst1q_s32(outptr1n, sum1_s32);
+                    vst1q_s32(outptr1n+4, sum1n_s32);                 
+
+                    r0 += 8;
+                    r1 += 8;
+                    r2 += 8;
+                    r3 += 8;
+                    outptr0 += 8;
+                    outptr1 += 8;
+                    outptr0n += 8;
+                    outptr1n += 8;
+                }
+
+                for (; remain>0; remain--)
+                {
+                    int sum0 = 0;
+                    int sum0n = 0;
+                    int sum1 = 0;
+                    int sum1n = 0;
+
+                    //ToDo Neon
+                    sum0 += (int)r0[0] * kernel0[0];
+                    sum0 += (int)r0[1] * kernel0[1];
+                    sum0 += (int)r0[2] * kernel0[2];
+                    sum0 += (int)r1[0] * kernel0[3];
+                    sum0 += (int)r1[1] * kernel0[4];
+                    sum0 += (int)r1[2] * kernel0[5];
+                    sum0 += (int)r2[0] * kernel0[6];
+                    sum0 += (int)r2[1] * kernel0[7];
+                    sum0 += (int)r2[2] * kernel0[8];
+
+                    sum1 += (int)r0[0] * kernel1[0];
+                    sum1 += (int)r0[1] * kernel1[1];
+                    sum1 += (int)r0[2] * kernel1[2];
+                    sum1 += (int)r1[0] * kernel1[3];
+                    sum1 += (int)r1[1] * kernel1[4];
+                    sum1 += (int)r1[2] * kernel1[5];
+                    sum1 += (int)r2[0] * kernel1[6];
+                    sum1 += (int)r2[1] * kernel1[7];
+                    sum1 += (int)r2[2] * kernel1[8];
+
+                    sum0n += (int)r1[0] * kernel0[0];
+                    sum0n += (int)r1[1] * kernel0[1];
+                    sum0n += (int)r1[2] * kernel0[2];
+                    sum0n += (int)r2[0] * kernel0[3];
+                    sum0n += (int)r2[1] * kernel0[4];
+                    sum0n += (int)r2[2] * kernel0[5];
+                    sum0n += (int)r3[0] * kernel0[6];
+                    sum0n += (int)r3[1] * kernel0[7];
+                    sum0n += (int)r3[2] * kernel0[8];
+
+                    sum1n += (int)r1[0] * kernel1[0];
+                    sum1n += (int)r1[1] * kernel1[1];
+                    sum1n += (int)r1[2] * kernel1[2];
+                    sum1n += (int)r2[0] * kernel1[3];
+                    sum1n += (int)r2[1] * kernel1[4];
+                    sum1n += (int)r2[2] * kernel1[5];
+                    sum1n += (int)r3[0] * kernel1[6];
+                    sum1n += (int)r3[1] * kernel1[7];
+                    sum1n += (int)r3[2] * kernel1[8];
+
+                    *outptr0 += sum0;
+                    *outptr1 += sum1;
+                    *outptr0n += sum0n;
+                    *outptr1n += sum1n;
+
+                    r0++;
+                    r1++;
+                    r2++;
+                    r3++;
+                    outptr0++;
+                    outptr1++;
+                    outptr0n++;
+                    outptr1n++;
+                }
+
+                r0 += 2 + w;
+                r1 += 2 + w;
+                r2 += 2 + w;
+                r3 += 2 + w;
+
+                outptr0 += outw;
+                outptr1 += outw;
+                outptr0n += outw;
+                outptr1n += outw;
+            }
+
+            for (; i < outh; i++)
+            {
+                int nn = outw >> 3;
+                int remain = outw & 7;
+
+                for (; nn > 0; nn--)
+                {
+                    // outch 0
+                    int8x8_t _r0 = vld1_s8(r0);
+                    int8x8_t _r0n = vld1_s8(r0+8);
+                    int8x8_t _r01 = vext_s8(_r0, _r0n, 1);
+                    int8x8_t _r02 = vext_s8(_r0, _r0n, 2);
+
+                    int16x8_t _sum0 = vmull_s8(_r0, _k00);
+                    _sum0 = vmlal_s8(_sum0, _r01, _k01);
+                    _sum0 = vmlal_s8(_sum0, _r02, _k02);
+
+                    int8x8_t _r1 = vld1_s8(r1);
+                    int8x8_t _r1n = vld1_s8(r1+8);
+                    int8x8_t _r11 = vext_s8(_r1, _r1n, 1);
+                    int8x8_t _r12 = vext_s8(_r1, _r1n, 2);
+                    _sum0 = vmlal_s8(_sum0, _r1, _k03);
+                    _sum0 = vmlal_s8(_sum0, _r11, _k04);
+                    _sum0 = vmlal_s8(_sum0, _r12, _k05);
+
+                    int8x8_t _r2 = vld1_s8(r2);
+                    int8x8_t _r2n = vld1_s8(r2+8);
+                    int8x8_t _r21 = vext_s8(_r2, _r2n, 1);
+                    int8x8_t _r22 = vext_s8(_r2, _r2n, 2);
+                    _sum0 = vmlal_s8(_sum0, _r2, _k06);
+                    _sum0 = vmlal_s8(_sum0, _r21, _k07);
+                    _sum0 = vmlal_s8(_sum0, _r22, _k08);
+
+                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
+                    int32x4_t sum0n_s32 = vld1q_s32(outptr0+4);
+
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));                    
+
+                    vst1q_s32(outptr0, sum0_s32);
+                    vst1q_s32(outptr0+4, sum0n_s32);
+
+                    // outch 1
+                    _sum0 = vmull_s8(_r0, _k10);
+                    _sum0 = vmlal_s8(_sum0, _r01, _k11);
+                    _sum0 = vmlal_s8(_sum0, _r02, _k12);
+
+                    _sum0 = vmlal_s8(_sum0, _r1, _k13);
+                    _sum0 = vmlal_s8(_sum0, _r11, _k14);
+                    _sum0 = vmlal_s8(_sum0, _r12, _k15);
+
+                    _sum0 = vmlal_s8(_sum0, _r2, _k16);
+                    _sum0 = vmlal_s8(_sum0, _r21, _k17);
+                    _sum0 = vmlal_s8(_sum0, _r22, _k18);
+
+                    sum0_s32 = vld1q_s32(outptr1);
+                    sum0n_s32 = vld1q_s32(outptr1+4);
+
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));                    
+
+                    vst1q_s32(outptr1, sum0_s32);
+                    vst1q_s32(outptr1+4, sum0n_s32);
+
+                    r0 += 8;
+                    r1 += 8;
+                    r2 += 8;
+                    outptr0 += 8;
+                    outptr1 += 8;
+                }
+
+                for (; remain>0; remain--)
+                {
+                    int sum0 = 0;
+                    int sum1 = 0;
+
+                    sum0 += (int)r0[0] * kernel0[0];
+                    sum0 += (int)r0[1] * kernel0[1];
+                    sum0 += (int)r0[2] * kernel0[2];
+                    sum0 += (int)r1[0] * kernel0[3];
+                    sum0 += (int)r1[1] * kernel0[4];
+                    sum0 += (int)r1[2] * kernel0[5];
+                    sum0 += (int)r2[0] * kernel0[6];
+                    sum0 += (int)r2[1] * kernel0[7];
+                    sum0 += (int)r2[2] * kernel0[8];
+
+                    sum1 += (int)r0[0] * kernel1[0];
+                    sum1 += (int)r0[1] * kernel1[1];
+                    sum1 += (int)r0[2] * kernel1[2];
+                    sum1 += (int)r1[0] * kernel1[3];
+                    sum1 += (int)r1[1] * kernel1[4];
+                    sum1 += (int)r1[2] * kernel1[5];
+                    sum1 += (int)r2[0] * kernel1[6];
+                    sum1 += (int)r2[1] * kernel1[7];
+                    sum1 += (int)r2[2] * kernel1[8];
+
+                    *outptr0 += sum0;
+                    *outptr1 += sum1;
+
+                    r0++;
+                    r1++;
+                    r2++;
+                    outptr0++;
+                    outptr1++;
+                }
+
+                r0 += 2;
+                r1 += 2;
+                r2 += 2;
+            }
+
+            kernel0 += 9;
+            kernel1 += 9;
+        }
+    }
+
+    #pragma omp parallel for num_threads(opt.num_threads)
+    for (int p=remain_outch_start; p<outch; p++)
     {
         Mat out0 = top_blob.channel(p);
 
         out0.fill(0);
 
-        const signed char *kernel0 = (const signed char *)kernel + p * inch * 9;
+        const signed char* kernel0 = (const signed char *)kernel + p * inch * 9;
 
-        for (int q = 0; q < inch; q++)
-        {
-            int *outptr0 = out0;
+        for (int q=0; q<inch; q++)
+        {                   
+            int* outptr0 = out0;
+            int* outptr0n = outptr0 + outw;
+        
+            const signed char* img0 = bottom_blob.channel(q);
+            
+            const signed char* r0 = img0;
+            const signed char* r1 = img0 + w;
+            const signed char* r2 = img0 + w * 2;
+            const signed char* r3 = img0 + w * 3;
 
-            const signed char *img0 = bottom_blob.channel(q);
+            const signed char* k00 = kernel0;
+            const signed char* k03 = kernel0 + 3;
+            const signed char* k06 = kernel0 + 6;
 
-            const signed char *r0 = img0;
-            const signed char *r1 = img0 + w;
-            const signed char *r2 = img0 + w * 2;
+            int i = 0;
 
-            for (int i = 0; i < outh; i++)
+            int8x8_t _k00 = vdup_n_s8(kernel0[0]);
+            int8x8_t _k01 = vdup_n_s8(kernel0[1]);
+            int8x8_t _k02 = vdup_n_s8(kernel0[2]);
+            int8x8_t _k03 = vdup_n_s8(kernel0[3]);
+            int8x8_t _k04 = vdup_n_s8(kernel0[4]);
+            int8x8_t _k05 = vdup_n_s8(kernel0[5]);
+            int8x8_t _k06 = vdup_n_s8(kernel0[6]);
+            int8x8_t _k07 = vdup_n_s8(kernel0[7]);
+            int8x8_t _k08 = vdup_n_s8(kernel0[8]);
+
+            for (; i+1 < outh; i+=2)
             {
-                int remain = outw;
+                int nn = outw >> 3;
+                int remain = outw & 7;
 
-                for (; remain > 0; remain--)
+                for (; nn > 0; nn--)
+                {
+                    int8x8_t _r0 = vld1_s8(r0);
+                    int8x8_t _r0n = vld1_s8(r0+8);
+                    int8x8_t _r01 = vext_s8(_r0, _r0n, 1);
+                    int8x8_t _r02 = vext_s8(_r0, _r0n, 2);
+
+                    int16x8_t _sum0 = vmull_s8(_r0, _k00);
+                    _sum0 = vmlal_s8(_sum0, _r01, _k01);
+                    _sum0 = vmlal_s8(_sum0, _r02, _k02);
+
+                    int8x8_t _r1 = vld1_s8(r1);
+                    int8x8_t _r1n = vld1_s8(r1+8);
+                    int8x8_t _r11 = vext_s8(_r1, _r1n, 1);
+                    int8x8_t _r12 = vext_s8(_r1, _r1n, 2);
+                    _sum0 = vmlal_s8(_sum0, _r1, _k03);
+                    _sum0 = vmlal_s8(_sum0, _r11, _k04);
+                    _sum0 = vmlal_s8(_sum0, _r12, _k05);
+
+                    int16x8_t _sum1 = vmull_s8(_r1, _k00);
+                    _sum1 = vmlal_s8(_sum1, _r11, _k01);
+                    _sum1 = vmlal_s8(_sum1, _r12, _k02);
+
+                    int8x8_t _r2 = vld1_s8(r2);
+                    int8x8_t _r2n = vld1_s8(r2+8);
+                    int8x8_t _r21 = vext_s8(_r2, _r2n, 1);
+                    int8x8_t _r22 = vext_s8(_r2, _r2n, 2);
+                    _sum0 = vmlal_s8(_sum0, _r2, _k06);
+                    _sum0 = vmlal_s8(_sum0, _r21, _k07);
+                    _sum0 = vmlal_s8(_sum0, _r22, _k08);
+
+                    _sum1 = vmlal_s8(_sum1, _r2, _k03);
+                    _sum1 = vmlal_s8(_sum1, _r21, _k04);
+                    _sum1 = vmlal_s8(_sum1, _r22, _k05);                
+
+                    int8x8_t _r3 = vld1_s8(r3);
+                    int8x8_t _r3n = vld1_s8(r3+8);
+                    int8x8_t _r31 = vext_s8(_r3, _r3n, 1);
+                    int8x8_t _r32 = vext_s8(_r3, _r3n, 2);
+                    _sum1 = vmlal_s8(_sum1, _r3, _k06);
+                    _sum1 = vmlal_s8(_sum1, _r31, _k07);
+                    _sum1 = vmlal_s8(_sum1, _r32, _k08);
+
+                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
+                    int32x4_t sum0n_s32 = vld1q_s32(outptr0+4);
+
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));                    
+
+                    vst1q_s32(outptr0, sum0_s32);
+                    vst1q_s32(outptr0+4, sum0n_s32);
+
+                    int32x4_t sum1_s32 = vld1q_s32(outptr0n);
+                    int32x4_t sum1n_s32 = vld1q_s32(outptr0n+4);
+
+                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
+                    sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1));                    
+
+                    vst1q_s32(outptr0n, sum1_s32);
+                    vst1q_s32(outptr0n+4, sum1n_s32);                   
+
+                    r0 += 8;
+                    r1 += 8;
+                    r2 += 8;
+                    r3 += 8;
+                    outptr0 += 8;
+                    outptr0n += 8;                   
+                }
+
+                for (; remain>0; remain--)
+                {
+                    // Todo neon
+                    int sum0 = 0;
+                    int sum0n = 0;
+
+                    sum0 += (int)r0[0] * kernel0[0];
+                    sum0 += (int)r0[1] * kernel0[1];
+                    sum0 += (int)r0[2] * kernel0[2];
+                    sum0 += (int)r1[0] * kernel0[3];
+                    sum0 += (int)r1[1] * kernel0[4];
+                    sum0 += (int)r1[2] * kernel0[5];
+                    sum0 += (int)r2[0] * kernel0[6];
+                    sum0 += (int)r2[1] * kernel0[7];
+                    sum0 += (int)r2[2] * kernel0[8];
+
+                    sum0n += (int)r1[0] * kernel0[0];
+                    sum0n += (int)r1[1] * kernel0[1];
+                    sum0n += (int)r1[2] * kernel0[2];
+                    sum0n += (int)r2[0] * kernel0[3];
+                    sum0n += (int)r2[1] * kernel0[4];
+                    sum0n += (int)r2[2] * kernel0[5];
+                    sum0n += (int)r3[0] * kernel0[6];
+                    sum0n += (int)r3[1] * kernel0[7];
+                    sum0n += (int)r3[2] * kernel0[8];
+
+                    *outptr0 += sum0;
+                    *outptr0n += sum0n;
+
+                    r0++;
+                    r1++;
+                    r2++;
+                    r3++;
+                    outptr0++;
+                    outptr0n++;
+                }
+
+                r0 += 2 + w;
+                r1 += 2 + w;
+                r2 += 2 + w;
+                r3 += 2 + w;
+
+                outptr0 += outw;
+                outptr0n += outw;
+            }
+
+            for (; i < outh; i++)
+            {
+                int nn = outw >> 3;
+                int remain = outw & 7;
+
+                for (; nn > 0; nn--)
+                {
+                    int8x8_t _r0 = vld1_s8(r0);
+                    int8x8_t _r0n = vld1_s8(r0+8);
+                    int8x8_t _r01 = vext_s8(_r0, _r0n, 1);
+                    int8x8_t _r02 = vext_s8(_r0, _r0n, 2);
+
+                    int16x8_t _sum0 = vmull_s8(_r0, _k00);
+                    _sum0 = vmlal_s8(_sum0, _r01, _k01);
+                    _sum0 = vmlal_s8(_sum0, _r02, _k02);
+
+                    int8x8_t _r1 = vld1_s8(r1);
+                    int8x8_t _r1n = vld1_s8(r1+8);
+                    int8x8_t _r11 = vext_s8(_r1, _r1n, 1);
+                    int8x8_t _r12 = vext_s8(_r1, _r1n, 2);
+                    _sum0 = vmlal_s8(_sum0, _r1, _k03);
+                    _sum0 = vmlal_s8(_sum0, _r11, _k04);
+                    _sum0 = vmlal_s8(_sum0, _r12, _k05);
+
+                    int8x8_t _r2 = vld1_s8(r2);
+                    int8x8_t _r2n = vld1_s8(r2+8);
+                    int8x8_t _r21 = vext_s8(_r2, _r2n, 1);
+                    int8x8_t _r22 = vext_s8(_r2, _r2n, 2);
+                    _sum0 = vmlal_s8(_sum0, _r2, _k06);
+                    _sum0 = vmlal_s8(_sum0, _r21, _k07);
+                    _sum0 = vmlal_s8(_sum0, _r22, _k08);
+
+                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
+                    int32x4_t sum0n_s32 = vld1q_s32(outptr0+4);
+
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));                    
+
+                    vst1q_s32(outptr0, sum0_s32);
+                    vst1q_s32(outptr0+4, sum0n_s32);
+
+                    r0 += 8;
+                    r1 += 8;
+                    r2 += 8;
+                    outptr0 += 8;
+                }                
+
+                for (; remain>0; remain--)
                 {
                     int sum0 = 0;
 
@@ -124,15 +676,14 @@ static void conv3x3s1_int8_neon(const Mat &bottom_blob, Mat &top_blob, const Mat
                     r1++;
                     r2++;
                     outptr0++;
-                }
+                }   
 
                 r0 += 2;
                 r1 += 2;
                 r2 += 2;
-            }
-
+            }           
             kernel0 += 9;
-        }
+        }       
     }
 }
 
@@ -166,7 +717,7 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
         out0.fill(0.f);
         out1.fill(0.f);
         out2.fill(0.f);
-        out3.fill(0.f);       
+        out3.fill(0.f);
 
         const signed char* kernel0 = (const signed char*)kernel + p * inch * 9;
         const signed char* kernel1 = (const signed char*)kernel + (p + 1) * inch * 9;
@@ -348,12 +899,149 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     outptr3 += 8;                        
                 }
 
+                if (remain >= 4)
+                {
+                    remain -= 4;
+
+                    int8x8x2_t _r0 = vld2_s8(r0);
+                    int8x8x2_t _r0n = vld2_s8(r0+16);
+                    int8x8_t _r00 = _r0.val[0];
+                    int8x8_t _r01 = _r0.val[1];
+                    int8x8_t _r02 = vext_s8(_r00, _r0n.val[0], 1);
+
+                    int8x8_t _k0 = vdup_n_s8(kernel0[0]);
+                    int8x8_t _k1 = vdup_n_s8(kernel1[0]);
+                    int8x8_t _k2 = vdup_n_s8(kernel2[0]);
+                    int8x8_t _k3 = vdup_n_s8(kernel3[0]);
+
+                    int16x8_t _sum0 = vmull_s8(_r00, _k0);
+                    int16x8_t _sum1 = vmull_s8(_r00, _k1);
+                    int16x8_t _sum2 = vmull_s8(_r00, _k2);
+                    int16x8_t _sum3 = vmull_s8(_r00, _k3);
+
+                    _k0 = vdup_n_s8(kernel0[1]);
+                    _k1 = vdup_n_s8(kernel1[1]);
+                    _k2 = vdup_n_s8(kernel2[1]);
+                    _k3 = vdup_n_s8(kernel3[1]);
+
+                    _sum0 = vmlal_s8(_sum0, _r01, _k0);
+                    _sum1 = vmlal_s8(_sum1, _r01, _k1);
+                    _sum2 = vmlal_s8(_sum2, _r01, _k2);
+                    _sum3 = vmlal_s8(_sum3, _r01, _k3);
+
+                    _k0 = vdup_n_s8(kernel0[2]);
+                    _k1 = vdup_n_s8(kernel1[2]);
+                    _k2 = vdup_n_s8(kernel2[2]);
+                    _k3 = vdup_n_s8(kernel3[2]);
+
+                    _sum0 = vmlal_s8(_sum0, _r02, _k0);
+                    _sum1 = vmlal_s8(_sum1, _r02, _k1);
+                    _sum2 = vmlal_s8(_sum2, _r02, _k2);
+                    _sum3 = vmlal_s8(_sum3, _r02, _k3);
+
+                    int8x8x2_t _r1 = vld2_s8(r1);
+                    int8x8x2_t _r1n = vld2_s8(r1+16);
+                    int8x8_t _r10 = _r1.val[0];
+                    int8x8_t _r11 = _r1.val[1];
+                    int8x8_t _r12 = vext_s8(_r10, _r1n.val[0], 1);
+
+                    _k0 = vdup_n_s8(kernel0[3]);
+                    _k1 = vdup_n_s8(kernel1[3]);
+                    _k2 = vdup_n_s8(kernel2[3]);
+                    _k3 = vdup_n_s8(kernel3[3]);
+
+                    _sum0 = vmlal_s8(_sum0, _r10, _k0);
+                    _sum1 = vmlal_s8(_sum1, _r10, _k1);
+                    _sum2 = vmlal_s8(_sum2, _r10, _k2);
+                    _sum3 = vmlal_s8(_sum3, _r10, _k3);
+
+                    _k0 = vdup_n_s8(kernel0[4]);
+                    _k1 = vdup_n_s8(kernel1[4]);
+                    _k2 = vdup_n_s8(kernel2[4]);
+                    _k3 = vdup_n_s8(kernel3[4]);
+
+                    _sum0 = vmlal_s8(_sum0, _r11, _k0);
+                    _sum1 = vmlal_s8(_sum1, _r11, _k1);
+                    _sum2 = vmlal_s8(_sum2, _r11, _k2);
+                    _sum3 = vmlal_s8(_sum3, _r11, _k3);
+
+                    _k0 = vdup_n_s8(kernel0[5]);
+                    _k1 = vdup_n_s8(kernel1[5]);
+                    _k2 = vdup_n_s8(kernel2[5]);
+                    _k3 = vdup_n_s8(kernel3[5]);
+
+                    _sum0 = vmlal_s8(_sum0, _r12, _k0);
+                    _sum1 = vmlal_s8(_sum1, _r12, _k1);
+                    _sum2 = vmlal_s8(_sum2, _r12, _k2);
+                    _sum3 = vmlal_s8(_sum3, _r12, _k3);
+
+                    int8x8x2_t _r2 = vld2_s8(r2);
+                    int8x8x2_t _r2n = vld2_s8(r2+16);
+                    int8x8_t _r20 = _r2.val[0];
+                    int8x8_t _r21 = _r2.val[1];
+                    int8x8_t _r22 = vext_s8(_r20, _r2n.val[0], 1);
+
+                    _k0 = vdup_n_s8(kernel0[6]);
+                    _k1 = vdup_n_s8(kernel1[6]);
+                    _k2 = vdup_n_s8(kernel2[6]);
+                    _k3 = vdup_n_s8(kernel3[6]);
+
+                    _sum0 = vmlal_s8(_sum0, _r20, _k0);
+                    _sum1 = vmlal_s8(_sum1, _r20, _k1);
+                    _sum2 = vmlal_s8(_sum2, _r20, _k2);
+                    _sum3 = vmlal_s8(_sum3, _r20, _k3);
+
+                    _k0 = vdup_n_s8(kernel0[7]);
+                    _k1 = vdup_n_s8(kernel1[7]);
+                    _k2 = vdup_n_s8(kernel2[7]);
+                    _k3 = vdup_n_s8(kernel3[7]);
+
+                    _sum0 = vmlal_s8(_sum0, _r21, _k0);
+                    _sum1 = vmlal_s8(_sum1, _r21, _k1);
+                    _sum2 = vmlal_s8(_sum2, _r21, _k2);
+                    _sum3 = vmlal_s8(_sum3, _r21, _k3);
+
+                    _k0 = vdup_n_s8(kernel0[8]);
+                    _k1 = vdup_n_s8(kernel1[8]);
+                    _k2 = vdup_n_s8(kernel2[8]);
+                    _k3 = vdup_n_s8(kernel3[8]);
+
+                    _sum0 = vmlal_s8(_sum0, _r22, _k0);
+                    _sum1 = vmlal_s8(_sum1, _r22, _k1);
+                    _sum2 = vmlal_s8(_sum2, _r22, _k2);
+                    _sum3 = vmlal_s8(_sum3, _r22, _k3);
+
+                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    vst1q_s32(outptr0, sum0_s32);
+
+                    int32x4_t sum1_s32 = vld1q_s32(outptr1);
+                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
+                    vst1q_s32(outptr1, sum1_s32);
+
+                    int32x4_t sum2_s32 = vld1q_s32(outptr2);
+                    sum2_s32 = vaddw_s16(sum2_s32, vget_low_s16(_sum2));
+                    vst1q_s32(outptr2, sum2_s32);
+
+                    int32x4_t sum3_s32 = vld1q_s32(outptr3);
+                    sum3_s32 = vaddw_s16(sum3_s32, vget_low_s16(_sum3));
+                    vst1q_s32(outptr3, sum3_s32);
+
+                    r0 += 8;
+                    r1 += 8;
+                    r2 += 8;
+                    outptr0 += 4;
+                    outptr1 += 4;
+                    outptr2 += 4;
+                    outptr3 += 4;
+                }
+
                 for (; remain>0; remain--)
                 {
                     int sum0 = 0;
                     int sum1 = 0;
                     int sum2 = 0;
-                    int sum3 = 0;                                   
+                    int sum3 = 0;
                 
                     sum0 += (int)r0[0] * kernel0[0];
                     sum0 += (int)r0[1] * kernel0[1];
@@ -393,12 +1081,12 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     sum3 += (int)r1[2] * kernel3[5];
                     sum3 += (int)r2[0] * kernel3[6];
                     sum3 += (int)r2[1] * kernel3[7];
-                    sum3 += (int)r2[2] * kernel3[8];                                                                                                                   
-                
+                    sum3 += (int)r2[2] * kernel3[8];
+
                     *outptr0 += sum0;
                     *outptr1 += sum1;
                     *outptr2 += sum2;
-                    *outptr3 += sum3;                                      
+                    *outptr3 += sum3;
 
                     r0 += 2;
                     r1 += 2;
@@ -406,7 +1094,7 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     outptr0++;
                     outptr1++;
                     outptr2++;
-                    outptr3++;                                     
+                    outptr3++;
                 }       
 
                 r0 += tailstep;
@@ -417,7 +1105,7 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
             kernel0 += 9;
             kernel1 += 9;
             kernel2 += 9;
-            kernel3 += 9;                      
+            kernel3 += 9;
         }
     }
 
@@ -442,7 +1130,7 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
 
             const signed char* k00 = kernel0;
             const signed char* k01 = kernel0 + 3;
-            const signed char* k02 = kernel0 + 6;   
+            const signed char* k02 = kernel0 + 6;
 
             int i = 0;
 
@@ -454,7 +1142,7 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
             int8x8_t _k5 = vdup_n_s8(kernel[5]);
             int8x8_t _k6 = vdup_n_s8(kernel[6]);
             int8x8_t _k7 = vdup_n_s8(kernel[7]);
-            int8x8_t _k8 = vdup_n_s8(kernel[8]);            
+            int8x8_t _k8 = vdup_n_s8(kernel[8]);
 
             for (; i < outh; i++)
             {           
@@ -505,8 +1193,50 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     r0 += 16;
                     r1 += 16;
                     r2 += 16;
-                    outptr0++;
-                }             
+                    outptr0 += 8;
+                }
+
+                if (remain >= 4)
+                {
+                    remain -= 4;
+
+                    int8x8x2_t _r0 = vld2_s8(r0);
+                    int8x8x2_t _r0n = vld2_s8(r0+16);
+                    int8x8_t _r00 = _r0.val[0];
+                    int8x8_t _r01 = _r0.val[1];
+                    int8x8_t _r02 = vext_s8(_r00, _r0n.val[0], 1);
+
+                    int16x8_t _sum = vmull_s8(_r00, _k0);
+                    _sum = vmlal_s8(_sum, _r01, _k1);
+                    _sum = vmlal_s8(_sum, _r02, _k2);
+
+                    int8x8x2_t _r1 = vld2_s8(r1);
+                    int8x8x2_t _r1n = vld2_s8(r1+16);
+                    int8x8_t _r10 = _r1.val[0];
+                    int8x8_t _r11 = _r1.val[1];
+                    int8x8_t _r12 = vext_s8(_r10, _r1n.val[0], 1);
+                    _sum = vmlal_s8(_sum, _r10, _k3);
+                    _sum = vmlal_s8(_sum, _r11, _k4);
+                    _sum = vmlal_s8(_sum, _r12, _k5);
+
+                    int8x8x2_t _r2 = vld2_s8(r2);
+                    int8x8x2_t _r2n = vld2_s8(r2+16);
+                    int8x8_t _r20 = _r2.val[0];
+                    int8x8_t _r21 = _r2.val[1];
+                    int8x8_t _r22 = vext_s8(_r20, _r2n.val[0], 1);
+                    _sum = vmlal_s8(_sum, _r20, _k6);
+                    _sum = vmlal_s8(_sum, _r21, _k7);
+                    _sum = vmlal_s8(_sum, _r22, _k8);
+
+                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum));
+                    vst1q_s32(outptr0, sum0_s32);
+
+                    r0 += 8;
+                    r1 += 8;
+                    r2 += 8;
+                    outptr0 += 4;
+                }                
 
                 for (; remain>0; remain--)
                 {

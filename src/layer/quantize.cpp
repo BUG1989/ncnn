@@ -15,6 +15,7 @@
 #include "quantize.h"
 
 #include <math.h>
+#include <benchmark.h>
 
 namespace ncnn {
 
@@ -43,6 +44,8 @@ static inline signed char float2int8(float v)
 
 int Quantize::forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) const
 {
+    // double start = ncnn::get_current_time();
+
     int dims = bottom_blob.dims;
 
     if (dims == 1)
@@ -106,6 +109,9 @@ int Quantize::forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) 
             }
         }
     }
+
+    // double end = ncnn::get_current_time();
+    // fprintf(stderr, "requantize : %8.2lfms\n", end - start);
 
     return 0;
 }

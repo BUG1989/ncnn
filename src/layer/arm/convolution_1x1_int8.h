@@ -450,7 +450,7 @@ static void conv1x1s1_int8_neon(const Mat &bottom_blob, Mat &top_blob, const Mat
                 int16x8_t _out4_s16 = vmull_s8(_r0, _k4);
                 int16x8_t _out5_s16 = vmull_s8(_r0, _k5);
                 int16x8_t _out6_s16 = vmull_s8(_r0, _k6);
-                int16x8_t _out7_s16 = vmull_s8(_r0, _k7);               
+                int16x8_t _out7_s16 = vmull_s8(_r0, _k7);           
 
                 _out0  = vaddw_s16(_out0, vget_low_s16(_out0_s16));
                 _out0n = vaddw_s16(_out0n, vget_high_s16(_out0_s16));
