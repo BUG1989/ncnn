@@ -114,30 +114,37 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
                 float32x4_t _bias = vdupq_n_f32(bias);
                 float32x4_t _scale = vdupq_n_f32(scale);
 
-                for (; nn>0; nn--)
+                if (nn > 0)
                 {
-                    // load top_s32
-                    int32x4_t _out0_s32 = vld1q_s32(intptr);
-                    int32x4_t _out0n_s32 = vld1q_s32(intptr+4);
-
+                asm volatile(                                          
+                    "dup    v2.4s, %w6                   \n" // scale
+                    "dup    v3.4s, %w7                   \n" // bias
+                    "0:                                  \n"
+                    "prfm   pldl1keep, [%1, #128]      \n"
+                    "ld1    {v0.4s, v1.4s}, [%1], #32    \n" // data                      
                     // top_s32 -> top_f32
-                    float32x4_t _out0_f32 = vcvtq_f32_s32(_out0_s32);
-                    float32x4_t _out0n_f32 = vcvtq_f32_s32(_out0n_s32);
-
+                    "scvtf  v5.4s, v0.4s                 \n"
+                    "scvtf  v6.4s, v1.4s                 \n"
                     // top_f32 = top_f32 * scale_out
-                    _out0_f32 = vmulq_f32(_out0_f32, _scale);
-                    _out0n_f32 = vmulq_f32(_out0n_f32, _scale);
-
+                    "fmul   v5.4s, v5.4s, v2.4s          \n"
+                    "fmul   v6.4s, v6.4s, v2.4s          \n"                    
                     // top_f32 = top_f32 + bias_tm
-                    _out0_f32 = vaddq_f32(_out0_f32, _bias);
-                    _out0n_f32 = vaddq_f32(_out0n_f32, _bias);
-
+                    "fadd   v5.4s, v5.4s, v3.4s          \n"
+                    "fadd   v6.4s, v6.4s, v3.4s          \n"
                     // save top_f32
-                    vst1q_f32(ptr, _out0_f32);
-                    vst1q_f32(ptr+4, _out0n_f32);
-
-                    intptr += 8;
-                    ptr += 8;
+                    "st1    {v5.4s, v6.4s}, [%2], #32    \n"
+                    "subs   %w0, %w0, #1                 \n"
+                    "bne    0b                           \n"
+                    : "=r"(nn),         // %0
+                      "=r"(intptr),     // %1
+                      "=r"(ptr)         // %2
+                    : "0"(nn),
+                      "1"(intptr),
+                      "2"(ptr),
+                      "r"(_scale),      // %6
+                      "r"(_bias)        // %7
+                    : "cc", "memory", "v0", "v1", "v2", "v3", "v4", "v5", "v6"
+                );
                 }             
 #else
                 if (nn > 0)
@@ -207,26 +214,32 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
 #if __aarch64__
                 float32x4_t _scale = vdupq_n_f32(scale);
 
-                for (; nn>0; nn--)
+                if (nn > 0)
                 {
-                    // load top_s32
-                    int32x4_t _out0_s32 = vld1q_s32(intptr);
-                    int32x4_t _out0n_s32 = vld1q_s32(intptr+4);
-
+                asm volatile(                                          
+                    "dup    v2.4s, %w6                   \n" // scale
+                    "0:                                  \n"
+                    "prfm   pldl1keep, [%1, #128]      \n"
+                    "ld1    {v0.4s, v1.4s}, [%1], #32    \n" // data                      
                     // top_s32 -> top_f32
-                    float32x4_t _out0_f32 = vcvtq_f32_s32(_out0_s32);
-                    float32x4_t _out0n_f32 = vcvtq_f32_s32(_out0n_s32);
-
+                    "scvtf  v5.4s, v0.4s                 \n"
+                    "scvtf  v6.4s, v1.4s                 \n"
                     // top_f32 = top_f32 * scale_out
-                    _out0_f32 = vmulq_f32(_out0_f32, _scale);
-                    _out0n_f32 = vmulq_f32(_out0n_f32, _scale);
-
+                    "fmul   v5.4s, v5.4s, v2.4s          \n"
+                    "fmul   v6.4s, v6.4s, v2.4s          \n"
                     // save top_f32
-                    vst1q_f32(ptr, _out0_f32);
-                    vst1q_f32(ptr+4, _out0n_f32);
-
-                    intptr += 8;
-                    ptr += 8;
+                    "st1    {v5.4s, v6.4s}, [%2], #32    \n"
+                    "subs   %w0, %w0, #1                 \n"
+                    "bne    0b                           \n"
+                    : "=r"(nn),         // %0
+                      "=r"(intptr),     // %1
+                      "=r"(ptr)         // %2
+                    : "0"(nn),
+                      "1"(intptr),
+                      "2"(ptr),
+                      "r"(_scale)       // %6
+                    : "cc", "memory", "v0", "v1", "v2", "v3", "v4", "v5", "v6"
+                );
                 }
 #else
                 if (nn > 0)

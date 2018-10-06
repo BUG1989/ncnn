@@ -175,45 +175,45 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                 float32x4_t _bias_tm = vdupq_n_f32(bias_tm);
                 float32x4_t _scale_out = vdupq_n_f32(scale_out);
 
-                for (; nn>0; nn--)
+                if (nn > 0)
                 {
-                    // load top_s32
-                    int32x4_t _out0_s32 = vld1q_s32(intptr);
-                    int32x4_t _out0n_s32 = vld1q_s32(intptr+4);
-
+                asm volatile(                                          
+                    "dup    v2.4s, %w6                   \n" //q10 scale_out
+                    "dup    v3.4s, %w7                   \n" //q12 bias_tm
+                    "0:                                  \n"
+                    "prfm   pldl1keep, [%1, #128]      \n"
+                    "ld1    {v0.4s, v1.4s}, [%1], #32    \n" //q0-q1 data                      
                     // top_s32 -> top_f32
-                    float32x4_t _out0_f32 = vcvtq_f32_s32(_out0_s32);
-                    float32x4_t _out0n_f32 = vcvtq_f32_s32(_out0n_s32);
-
+                    "scvtf  v5.4s, v0.4s                 \n"
+                    "scvtf  v6.4s, v1.4s                 \n"
                     // top_f32 = top_f32 + bias_tm
-                    _out0_f32 = vaddq_f32(_out0_f32, _bias_tm);
-                    _out0n_f32 = vaddq_f32(_out0n_f32, _bias_tm);
-
+                    "fadd   v5.4s, v5.4s, v3.4s          \n"
+                    "fadd   v6.4s, v6.4s, v3.4s          \n"
                     // top_f32 = top_f32 * scale_out
-                    _out0_f32 = vmulq_f32(_out0_f32, _scale_out);
-                    _out0n_f32 = vmulq_f32(_out0n_f32, _scale_out);
-
+                    "fmul   v5.4s, v5.4s, v2.4s          \n"
+                    "fmul   v6.4s, v6.4s, v2.4s          \n"
                     // top_f32 -> top_s32
-                    _out0_s32[0] = vcvtas_s32_f32(_out0_f32[0]);
-                    _out0_s32[1] = vcvtas_s32_f32(_out0_f32[1]);
-                    _out0_s32[2] = vcvtas_s32_f32(_out0_f32[2]);
-                    _out0_s32[3] = vcvtas_s32_f32(_out0_f32[3]);
-                    _out0n_s32[0] = vcvtas_s32_f32(_out0n_f32[0]);
-                    _out0n_s32[1] = vcvtas_s32_f32(_out0n_f32[1]);
-                    _out0n_s32[2] = vcvtas_s32_f32(_out0n_f32[2]);
-                    _out0n_s32[3] = vcvtas_s32_f32(_out0n_f32[3]);
-
+                    "fcvtas v7.4s, v5.4s                 \n"
+                    "fcvtas v8.4s, v6.4s                 \n"
                     // top_s32 -> top_s16
-                    int16x8_t _out0_s16 = vcombine_s16(vqmovn_s32(_out0_s32), vqmovn_s32(_out0n_s32));
-
+                    "sqxtn  v9.4h, v7.4s                 \n"
+                    "sqxtn2 v9.8h, v8.4s                 \n"
                     // top_s16 -> top_s8
-                    int8x8_t _out0_s8 = vqmovn_s16(_out0_s16);
-
+                    "sqxtn  v10.8b, v9.8h                \n"
                     // save top_s8
-                    vst1_s8(ptr, _out0_s8);
-
-                    intptr += 8;
-                    ptr += 8;
+                    "st1    {v10.8b}, [%2], #8           \n"
+                    "subs   %w0, %w0, #1                 \n"
+                    "bne    0b                           \n"
+                    : "=r"(nn),         // %0
+                      "=r"(intptr),     // %1
+                      "=r"(ptr)         // %2
+                    : "0"(nn),
+                      "1"(intptr),
+                      "2"(ptr),
+                      "r"(scale_out),   // %6
+                      "r"(bias_tm)      // %7
+                    : "cc", "memory", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10"
+                );
                 }
 #else
                 if (nn > 0)
@@ -223,20 +223,16 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                     "vld1.s32   {d0-d3}, [%1:128]!  \n" //q0-q1 data
                     "vdup.f32   q10, %6             \n" //q10 scale_out
                     "vdup.f32   q12, %7             \n" //q12 bias_tm
-
                     "0:                             \n"
                     // top_s32 -> top_f32
                     "vcvt.f32.s32 q0, q0            \n" 
                     "vcvt.f32.s32 q1, q1            \n"
-
                     // top_f32 = top_f32 + bias_tm
                     "vadd.f32   q0, q0, q12         \n"
                     "vadd.f32   q1, q1, q12         \n"
-
                     // top_f32 = top_f32 * scale_out
                     "vmul.f32   q0, q0, q10         \n"
                     "vmul.f32   q1, q1, q10         \n"
-
                     // top_f32 -> top_s32
                     "vcvtr.s32.f32 s0, s0           \n"
                     "vcvtr.s32.f32 s1, s1           \n"
@@ -246,23 +242,17 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                     "vcvtr.s32.f32 s5, s5           \n"
                     "vcvtr.s32.f32 s6, s6           \n"
                     "vcvtr.s32.f32 s7, s7           \n" 
-
                     // top_s32 -> top_s16
                     "vqmovn.s32 d4, q0              \n"
                     "vqmovn.s32 d5, q1              \n"
-
                     "pld        [%1, #256]          \n"
                     "vld1.s32   {d0-d3}, [%1:128]!  \n" //q0-q1 data
-
                     // top_s16 -> top_s8
                     "vqmovn.s16   d4, q2            \n"
-
                     // save top_s8
                     "vst1.8     {d4}, [%2:64]!      \n"
-
                     "subs       %0, #1              \n"
                     "bne        0b                  \n"
-
                     "sub        %1, #32             \n"
                     : "=r"(nn),         // %0
                       "=r"(intptr),     // %1
@@ -305,42 +295,40 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
 #if __aarch64__
                 float32x4_t _scale_out = vdupq_n_f32(scale_out);
 
-                // TODO
-                for (; nn>0; nn--)
+                if (nn > 0)
                 {
-                    // load top_s32
-                    int32x4_t out0_s32 = vld1q_s32(intptr);
-                    int32x4_t out0n_s32 = vld1q_s32(intptr+4);
-
+                asm volatile(                                          
+                    "dup    v2.4s, %w6                   \n" //q10 scale_out
+                    "0:                                  \n"
+                    "prfm   pldl1keep, [%1, #128]      \n"
+                    "ld1    {v0.4s, v1.4s}, [%1], #32    \n" //q0-q1 data                      
                     // top_s32 -> top_f32
-                    float32x4_t out0_f32 = vcvtq_f32_s32(out0_s32);
-                    float32x4_t out0n_f32 = vcvtq_f32_s32(out0n_s32);
-
+                    "scvtf  v5.4s, v0.4s                 \n"
+                    "scvtf  v6.4s, v1.4s                 \n"
                     // top_f32 = top_f32 * scale_out
-                    out0_f32 = vmulq_f32(out0_f32, _scale_out);
-                    out0n_f32 = vmulq_f32(out0n_f32, _scale_out);
-
+                    "fmul   v5.4s, v5.4s, v2.4s          \n"
+                    "fmul   v6.4s, v6.4s, v2.4s          \n"
                     // top_f32 -> top_s32
-                    out0_s32[0] = vcvtas_s32_f32(out0_f32[0]);
-                    out0_s32[1] = vcvtas_s32_f32(out0_f32[1]);
-                    out0_s32[2] = vcvtas_s32_f32(out0_f32[2]);
-                    out0_s32[3] = vcvtas_s32_f32(out0_f32[3]);
-                    out0n_s32[0] = vcvtas_s32_f32(out0n_f32[0]);
-                    out0n_s32[1] = vcvtas_s32_f32(out0n_f32[1]);
-                    out0n_s32[2] = vcvtas_s32_f32(out0n_f32[2]);
-                    out0n_s32[3] = vcvtas_s32_f32(out0n_f32[3]);
-
+                    "fcvtas v7.4s, v5.4s                 \n"
+                    "fcvtas v8.4s, v6.4s                 \n"
                     // top_s32 -> top_s16
-                    int16x8_t out0_s16 = vcombine_s16(vqmovn_s32(out0_s32), vqmovn_s32(out0n_s32));
-
+                    "sqxtn  v9.4h, v7.4s                 \n"
+                    "sqxtn2 v9.8h, v8.4s                 \n"
                     // top_s16 -> top_s8
-                    int8x8_t out0_s8 = vqmovn_s16(out0_s16);
-
+                    "sqxtn  v10.8b, v9.8h                \n"
                     // save top_s8
-                    vst1_s8(ptr, out0_s8);
-
-                    intptr += 8;
-                    ptr += 8;
+                    "st1    {v10.8b}, [%2], #8           \n"
+                    "subs   %w0, %w0, #1                 \n"
+                    "bne    0b                           \n"
+                    : "=r"(nn),         // %0
+                      "=r"(intptr),     // %1
+                      "=r"(ptr)         // %2
+                    : "0"(nn),
+                      "1"(intptr),
+                      "2"(ptr),
+                      "r"(scale_out)    // %6
+                    : "cc", "memory", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10"
+                );
                 }
 #else
                 if (nn > 0)

@@ -112,38 +112,37 @@ int Quantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option& o
 #if __aarch64__
             float32x4_t _scale = vdupq_n_f32(scale);
 
-            for (; nn > 0; nn--)
+            if (nn > 0)
             {
-                // load bottom_f32
-                float32x4_t _out0_f32 = vld1q_f32(ptr);
-                float32x4_t _out0n_f32 = vld1q_f32(ptr+4);
-
+            asm volatile(                                          
+                "dup    v2.4s, %w6                   \n" //scale
+                "0:                                  \n"
+                "prfm   pldl1keep, [%1, #128]        \n"
+                "ld1    {v0.4s, v1.4s}, [%1], #32    \n" //data
                 // bottom_f32 = bottom_f32 * scale
-                _out0_f32 = vmulq_f32(_out0_f32, _scale);
-                _out0n_f32 = vmulq_f32(_out0n_f32, _scale); 
-
-                // bottom_f32 -> bottom_s32
-                int32x4_t _out0_s32, _out0n_s32;
-                _out0_s32[0] = vcvtas_s32_f32(_out0_f32[0]);
-                _out0_s32[1] = vcvtas_s32_f32(_out0_f32[1]);
-                _out0_s32[2] = vcvtas_s32_f32(_out0_f32[2]);
-                _out0_s32[3] = vcvtas_s32_f32(_out0_f32[3]);
-                _out0n_s32[0] = vcvtas_s32_f32(_out0n_f32[0]);
-                _out0n_s32[1] = vcvtas_s32_f32(_out0n_f32[1]);
-                _out0n_s32[2] = vcvtas_s32_f32(_out0n_f32[2]);
-                _out0n_s32[3] = vcvtas_s32_f32(_out0n_f32[3]);
-
-                // bottom_s32 -> bottom_s16
-                int16x8_t _out0_s16 = vcombine_s16(vqmovn_s32(_out0_s32), vqmovn_s32(_out0n_s32));
-
-                // bottom_s16 -> bottom_s8
-                int8x8_t _out0_s8 = vqmovn_s16(_out0_s16);
-
-                // save bottom_s8
-                vst1_s8(outptr, _out0_s8);
-
-                ptr += 8;
-                outptr += 8;
+                "fmul   v3.4s, v0.4s, v2.4s          \n"
+                "fmul   v4.4s, v1.4s, v2.4s          \n"
+                // top_f32 -> top_s32
+                "fcvtas v5.4s, v3.4s                 \n"
+                "fcvtas v6.4s, v4.4s                 \n"
+                // top_s32 -> top_s16
+                "sqxtn  v7.4h, v5.4s                 \n"
+                "sqxtn2 v7.8h, v6.4s                 \n"
+                // top_s16 -> top_s8
+                "sqxtn  v8.8b, v7.8h                 \n"
+                // save top_s8
+                "st1    {v8.8b}, [%2], #8            \n"
+                "subs   %w0, %w0, #1                 \n"
+                "bne    0b                           \n"
+                : "=r"(nn),       // %0
+                  "=r"(ptr),      // %1
+                  "=r"(outptr)    // %2
+                : "0"(nn),
+                  "1"(ptr),
+                  "2"(outptr),
+                  "r"(_scale)     // %6
+                : "cc", "memory", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"
+            );
             }
 #else
             if (nn > 0)
