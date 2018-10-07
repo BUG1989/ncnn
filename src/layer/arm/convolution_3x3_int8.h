@@ -739,301 +739,491 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
 
             int i = 0;
 
+            int8x16_t _k0 = vld1q_s8(kernel0);
+            int8x16_t _k1 = vld1q_s8(kernel1);
+            int8x16_t _k2 = vld1q_s8(kernel2);
+            int8x16_t _k3 = vld1q_s8(kernel3);
+
             for (; i < outh; i++)
             {                           
                 int nn = outw >> 3;
                 int remain = outw & 7;
 
-                for (; nn > 0; nn--)
+                if (nn > 0)
                 {
-                    int8x8x2_t _r0 = vld2_s8(r0);
-                    int8x8x2_t _r0n = vld2_s8(r0+16);
-                    int8x8_t _r00 = _r0.val[0];
-                    int8x8_t _r01 = _r0.val[1];
-                    int8x8_t _r02 = vext_s8(_r00, _r0n.val[0], 1);
+                asm volatile(
+                    "0:              			       \n"
+                    // r0
+                    "prfm   pldl1keep, [%5, #128]      \n"
+                    "ld2    {v4.8b, v5.8b}, [%5], #16  \n"
+                    "ld2    {v6.8b, v7.8b}, [%5]       \n"
+                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
+                    
+                    "dup    v9.8b,  %16.b[0]           \n"
+                    "dup    v10.8b, %17.b[0]           \n"
+                    "dup    v11.8b, %18.b[0]           \n"
+                    "dup    v12.8b, %19.b[0]           \n"
+                    
+                    "smull  v13.8h, v4.8b, v9.8b       \n"
+                    "smull  v14.8h, v4.8b, v10.8b      \n"
+                    "smull  v15.8h, v4.8b, v11.8b      \n"
+                    "smull  v16.8h, v4.8b, v12.8b      \n"
 
-                    int8x8_t _k0 = vdup_n_s8(kernel0[0]);
-                    int8x8_t _k1 = vdup_n_s8(kernel1[0]);
-                    int8x8_t _k2 = vdup_n_s8(kernel2[0]);
-                    int8x8_t _k3 = vdup_n_s8(kernel3[0]);
+                    "dup    v9.8b, %16.b[1]            \n"
+                    "dup    v10.8b, %17.b[1]           \n"
+                    "dup    v11.8b, %18.b[1]           \n"
+                    "dup    v12.8b, %19.b[1]           \n"
+                    
+                    "smlal  v13.8h, v5.8b, v9.8b       \n"
+                    "smlal  v14.8h, v5.8b, v10.8b      \n"
+                    "smlal  v15.8h, v5.8b, v11.8b      \n"
+                    "smlal  v16.8h, v5.8b, v12.8b      \n"
+                    
+                    "dup    v9.8b, %16.b[2]            \n"
+                    "dup    v10.8b, %17.b[2]           \n"
+                    "dup    v11.8b, %18.b[2]           \n"
+                    "dup    v12.8b, %19.b[2]           \n"
+                    
+                    "smlal  v13.8h, v8.8b, v9.8b       \n"
+                    "smlal  v14.8h, v8.8b, v10.8b      \n"
+                    "smlal  v15.8h, v8.8b, v11.8b      \n"
+                    "smlal  v16.8h, v8.8b, v12.8b      \n"
+                    // r1
+                    "prfm   pldl1keep, [%6, #128]      \n"
+                    "ld2    {v4.8b, v5.8b}, [%6], #16  \n"
+                    "ld2    {v6.8b, v7.8b}, [%6]       \n"
+                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
+                    
+                    "dup    v9.8b, %16.b[3]            \n"
+                    "dup    v10.8b, %17.b[3]           \n"
+                    "dup    v11.8b, %18.b[3]           \n"
+                    "dup    v12.8b, %19.b[3]           \n"
+                    
+                    "smlal  v13.8h, v4.8b, v9.8b       \n"
+                    "smlal  v14.8h, v4.8b, v10.8b      \n"
+                    "smlal  v15.8h, v4.8b, v11.8b      \n"
+                    "smlal  v16.8h, v4.8b, v12.8b      \n"
 
-                    int16x8_t _sum0 = vmull_s8(_r00, _k0);
-                    int16x8_t _sum1 = vmull_s8(_r00, _k1);
-                    int16x8_t _sum2 = vmull_s8(_r00, _k2);
-                    int16x8_t _sum3 = vmull_s8(_r00, _k3);                   
+                    "dup    v9.8b, %16.b[4]            \n"
+                    "dup    v10.8b, %17.b[4]           \n"
+                    "dup    v11.8b, %18.b[4]           \n"
+                    "dup    v12.8b, %19.b[4]           \n"
+                    
+                    "smlal  v13.8h, v5.8b, v9.8b       \n"
+                    "smlal  v14.8h, v5.8b, v10.8b      \n"
+                    "smlal  v15.8h, v5.8b, v11.8b      \n"
+                    "smlal  v16.8h, v5.8b, v12.8b      \n"
+                    
+                    "dup    v9.8b, %16.b[5]            \n"
+                    "dup    v10.8b, %17.b[5]           \n"
+                    "dup    v11.8b, %18.b[5]           \n"
+                    "dup    v12.8b, %19.b[5]           \n"
+                    
+                    "smlal  v13.8h, v8.8b, v9.8b       \n"
+                    "smlal  v14.8h, v8.8b, v10.8b      \n"
+                    "smlal  v15.8h, v8.8b, v11.8b      \n"
+                    "smlal  v16.8h, v8.8b, v12.8b      \n"	
+                    // r2
+                    "prfm   pldl1keep, [%7, #128]      \n"
+                    "ld2    {v4.8b, v5.8b}, [%7], #16  \n"
+                    "ld2    {v6.8b, v7.8b}, [%7]       \n"
+                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
+                    
+                    "dup    v9.8b, %16.b[6]            \n"
+                    "dup    v10.8b, %17.b[6]           \n"
+                    "dup    v11.8b, %18.b[6]           \n"
+                    "dup    v12.8b, %19.b[6]           \n"
+                    
+                    "smlal  v13.8h, v4.8b, v9.8b       \n"
+                    "smlal  v14.8h, v4.8b, v10.8b      \n"
+                    "smlal  v15.8h, v4.8b, v11.8b      \n"
+                    "smlal  v16.8h, v4.8b, v12.8b      \n"
 
-                    _k0 = vdup_n_s8(kernel0[1]);
-                    _k1 = vdup_n_s8(kernel1[1]);
-                    _k2 = vdup_n_s8(kernel2[1]);
-                    _k3 = vdup_n_s8(kernel3[1]);                                     
+                    "dup    v9.8b, %16.b[7]            \n"
+                    "dup    v10.8b, %17.b[7]           \n"
+                    "dup    v11.8b, %18.b[7]           \n"
+                    "dup    v12.8b, %19.b[7]           \n"
+                    
+                    "smlal  v13.8h, v5.8b, v9.8b       \n"
+                    "smlal  v14.8h, v5.8b, v10.8b      \n"
+                    "smlal  v15.8h, v5.8b, v11.8b      \n"
+                    "smlal  v16.8h, v5.8b, v12.8b      \n"
+                    
+                    "dup    v9.8b, %16.b[8]            \n"
+                    "dup    v10.8b, %17.b[8]           \n"
+                    "dup    v11.8b, %18.b[8]           \n"
+                    "dup    v12.8b, %19.b[8]           \n"
+                    
+                    "smlal  v13.8h, v8.8b, v9.8b       \n"
+                    "smlal  v14.8h, v8.8b, v10.8b      \n"
+                    "smlal  v15.8h, v8.8b, v11.8b      \n"
+                    "smlal  v16.8h, v8.8b, v12.8b      \n"
+                    // sum0 - sum3
+                    "prfm   pldl1keep, [%1, #128]      \n"
+                    "prfm   pldl1keep, [%2, #128]      \n"
+                    "prfm   pldl1keep, [%3, #128]      \n"
+                    "prfm   pldl1keep, [%4, #128]      \n"
+                    "ld1    {v17.4s, v18.4s}, [%1]     \n"
+                    "ld1    {v19.4s, v20.4s}, [%2]     \n"
+                    "ld1    {v21.4s, v22.4s}, [%3]     \n"
+                    "ld1    {v23.4s, v24.4s}, [%4]     \n"
 
-                    _sum0 = vmlal_s8(_sum0, _r01, _k0);
-                    _sum1 = vmlal_s8(_sum1, _r01, _k1);
-                    _sum2 = vmlal_s8(_sum2, _r01, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r01, _k3);                  
+                    "saddw  v17.4s, v17.4s, v13.4h     \n"
+                    "saddw2  v18.4s, v18.4s, v13.8h    \n"
+                    "saddw  v19.4s, v19.4s, v14.4h     \n"
+                    "saddw2  v20.4s, v20.4s, v14.8h    \n"
+                    "saddw  v21.4s, v21.4s, v15.4h     \n"
+                    "saddw2  v22.4s, v22.4s, v15.8h    \n"
+                    "saddw  v23.4s, v23.4s, v16.4h     \n"
+                    "saddw2  v24.4s, v24.4s, v16.8h    \n"
+                    "st1    {v17.4s, v18.4s}, [%1], #32\n"
+                    "st1    {v19.4s, v20.4s}, [%2], #32\n"
+                    "st1    {v21.4s, v22.4s}, [%3], #32\n"
+                    "st1    {v23.4s, v24.4s}, [%4], #32\n"
+                    "subs   %w0, %w0, #1               \n"
+                    "bne    0b                         \n"
+                    : "=r"(nn),         //%0
+                      "=r"(outptr0),    //%1
+                      "=r"(outptr1),	//%2
+                      "=r"(outptr2),	//%3
+                      "=r"(outptr3),	//%4
+                      "=r"(r0),			//%5
+                      "=r"(r1),			//%6
+                      "=r"(r2)			//%7
+                    : "0"(nn),
+                      "1"(outptr0),
+                      "2"(outptr1),
+                      "3"(outptr2),
+                      "4"(outptr3),
+                      "5"(r0),
+                      "6"(r1),
+                      "7"(r2),
+                      "w"(_k0),			//%16
+                      "w"(_k1),			//%17
+                      "w"(_k2),			//%18
+                      "w"(_k3) 			//%19
+                    : "cc", "memory", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24"
+                );
+                }
 
-                    _k0 = vdup_n_s8(kernel0[2]);
-                    _k1 = vdup_n_s8(kernel1[2]);
-                    _k2 = vdup_n_s8(kernel2[2]);
-                    _k3 = vdup_n_s8(kernel3[2]);                                         
+                if (remain >= 5)
+                {
+                    remain -= 5;
 
-                    _sum0 = vmlal_s8(_sum0, _r02, _k0);
-                    _sum1 = vmlal_s8(_sum1, _r02, _k1);
-                    _sum2 = vmlal_s8(_sum2, _r02, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r02, _k3);                   
+                asm volatile(
+                    // r0
+                    "prfm   pldl1keep, [%5, #128]      \n"
+                    "ld2    {v4.8b, v5.8b}, [%5], #16  \n"
+                    "ld2    {v6.8b, v7.8b}, [%5]       \n"
+                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
+                    
+                    "dup    v9.8b,  %16.b[0]           \n"
+                    "dup    v10.8b, %17.b[0]           \n"
+                    "dup    v11.8b, %18.b[0]           \n"
+                    "dup    v12.8b, %19.b[0]           \n"
+                    
+                    "smull  v13.8h, v4.8b, v9.8b       \n"
+                    "smull  v14.8h, v4.8b, v10.8b      \n"
+                    "smull  v15.8h, v4.8b, v11.8b      \n"
+                    "smull  v16.8h, v4.8b, v12.8b      \n"
 
-                    int8x8x2_t _r1 = vld2_s8(r1);
-                    int8x8x2_t _r1n = vld2_s8(r1+16);
-                    int8x8_t _r10 = _r1.val[0];
-                    int8x8_t _r11 = _r1.val[1];
-                    int8x8_t _r12 = vext_s8(_r10, _r1n.val[0], 1);
+                    "dup    v9.8b, %16.b[1]            \n"
+                    "dup    v10.8b, %17.b[1]           \n"
+                    "dup    v11.8b, %18.b[1]           \n"
+                    "dup    v12.8b, %19.b[1]           \n"
+                    
+                    "smlal  v13.8h, v5.8b, v9.8b       \n"
+                    "smlal  v14.8h, v5.8b, v10.8b      \n"
+                    "smlal  v15.8h, v5.8b, v11.8b      \n"
+                    "smlal  v16.8h, v5.8b, v12.8b      \n"
+                    
+                    "dup    v9.8b, %16.b[2]            \n"
+                    "dup    v10.8b, %17.b[2]           \n"
+                    "dup    v11.8b, %18.b[2]           \n"
+                    "dup    v12.8b, %19.b[2]           \n"
+                    
+                    "smlal  v13.8h, v8.8b, v9.8b       \n"
+                    "smlal  v14.8h, v8.8b, v10.8b      \n"
+                    "smlal  v15.8h, v8.8b, v11.8b      \n"
+                    "smlal  v16.8h, v8.8b, v12.8b      \n"
+                    // r1
+                    "prfm   pldl1keep, [%6, #128]      \n"
+                    "ld2    {v4.8b, v5.8b}, [%6], #16  \n"
+                    "ld2    {v6.8b, v7.8b}, [%6]       \n"
+                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
+                    
+                    "dup    v9.8b, %16.b[3]            \n"
+                    "dup    v10.8b, %17.b[3]           \n"
+                    "dup    v11.8b, %18.b[3]           \n"
+                    "dup    v12.8b, %19.b[3]           \n"
+                    
+                    "smlal  v13.8h, v4.8b, v9.8b       \n"
+                    "smlal  v14.8h, v4.8b, v10.8b      \n"
+                    "smlal  v15.8h, v4.8b, v11.8b      \n"
+                    "smlal  v16.8h, v4.8b, v12.8b      \n"
 
-                    _k0 = vdup_n_s8(kernel0[3]);
-                    _k1 = vdup_n_s8(kernel1[3]);
-                    _k2 = vdup_n_s8(kernel2[3]);
-                    _k3 = vdup_n_s8(kernel3[3]);                  
+                    "dup    v9.8b, %16.b[4]            \n"
+                    "dup    v10.8b, %17.b[4]           \n"
+                    "dup    v11.8b, %18.b[4]           \n"
+                    "dup    v12.8b, %19.b[4]           \n"
+                    
+                    "smlal  v13.8h, v5.8b, v9.8b       \n"
+                    "smlal  v14.8h, v5.8b, v10.8b      \n"
+                    "smlal  v15.8h, v5.8b, v11.8b      \n"
+                    "smlal  v16.8h, v5.8b, v12.8b      \n"
+                    
+                    "dup    v9.8b, %16.b[5]            \n"
+                    "dup    v10.8b, %17.b[5]           \n"
+                    "dup    v11.8b, %18.b[5]           \n"
+                    "dup    v12.8b, %19.b[5]           \n"
+                    
+                    "smlal  v13.8h, v8.8b, v9.8b       \n"
+                    "smlal  v14.8h, v8.8b, v10.8b      \n"
+                    "smlal  v15.8h, v8.8b, v11.8b      \n"
+                    "smlal  v16.8h, v8.8b, v12.8b      \n"	
+                    // r2
+                    "prfm   pldl1keep, [%7, #128]      \n"
+                    "ld2    {v4.8b, v5.8b}, [%7], #16  \n"
+                    "ld2    {v6.8b, v7.8b}, [%7]       \n"
+                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
+                    
+                    "dup    v9.8b, %16.b[6]            \n"
+                    "dup    v10.8b, %17.b[6]           \n"
+                    "dup    v11.8b, %18.b[6]           \n"
+                    "dup    v12.8b, %19.b[6]           \n"
+                    
+                    "smlal  v13.8h, v4.8b, v9.8b       \n"
+                    "smlal  v14.8h, v4.8b, v10.8b      \n"
+                    "smlal  v15.8h, v4.8b, v11.8b      \n"
+                    "smlal  v16.8h, v4.8b, v12.8b      \n"
 
-                    _sum0 = vmlal_s8(_sum0, _r10, _k0);
-                    _sum1 = vmlal_s8(_sum1, _r10, _k1);
-                    _sum2 = vmlal_s8(_sum2, _r10, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r10, _k3);                    
+                    "dup    v9.8b, %16.b[7]            \n"
+                    "dup    v10.8b, %17.b[7]           \n"
+                    "dup    v11.8b, %18.b[7]           \n"
+                    "dup    v12.8b, %19.b[7]           \n"
+                    
+                    "smlal  v13.8h, v5.8b, v9.8b       \n"
+                    "smlal  v14.8h, v5.8b, v10.8b      \n"
+                    "smlal  v15.8h, v5.8b, v11.8b      \n"
+                    "smlal  v16.8h, v5.8b, v12.8b      \n"
+                    
+                    "dup    v9.8b, %16.b[8]            \n"
+                    "dup    v10.8b, %17.b[8]           \n"
+                    "dup    v11.8b, %18.b[8]           \n"
+                    "dup    v12.8b, %19.b[8]           \n"
+                    
+                    "smlal  v13.8h, v8.8b, v9.8b       \n"
+                    "smlal  v14.8h, v8.8b, v10.8b      \n"
+                    "smlal  v15.8h, v8.8b, v11.8b      \n"
+                    "smlal  v16.8h, v8.8b, v12.8b      \n"
+                    // sum0 - sum3
+                    "prfm   pldl1keep, [%1, #128]      \n"
+                    "prfm   pldl1keep, [%2, #128]      \n"
+                    "prfm   pldl1keep, [%3, #128]      \n"
+                    "prfm   pldl1keep, [%4, #128]      \n"
+                    "ld1    {v17.4s, v18.4s}, [%1]     \n"
+                    "ld1    {v19.4s, v20.4s}, [%2]     \n"
+                    "ld1    {v21.4s, v22.4s}, [%3]     \n"
+                    "ld1    {v23.4s, v24.4s}, [%4]     \n"
 
-                    _k0 = vdup_n_s8(kernel0[4]);
-                    _k1 = vdup_n_s8(kernel1[4]);
-                    _k2 = vdup_n_s8(kernel2[4]);
-                    _k3 = vdup_n_s8(kernel3[4]);                    
+                    "saddw  v17.4s, v17.4s, v13.4h     \n"
+                    "saddw2  v18.4s, v18.4s, v13.8h    \n"
+                    "saddw  v19.4s, v19.4s, v14.4h     \n"
+                    "saddw2  v20.4s, v20.4s, v14.8h    \n"
+                    "saddw  v21.4s, v21.4s, v15.4h     \n"
+                    "saddw2  v22.4s, v22.4s, v15.8h    \n"
+                    "saddw  v23.4s, v23.4s, v16.4h     \n"
+                    "saddw2  v24.4s, v24.4s, v16.8h    \n"
 
-                    _sum0 = vmlal_s8(_sum0, _r11, _k0);
-                    _sum1 = vmlal_s8(_sum1, _r11, _k1);
-                    _sum2 = vmlal_s8(_sum2, _r11, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r11, _k3);                    
-
-                    _k0 = vdup_n_s8(kernel0[5]);
-                    _k1 = vdup_n_s8(kernel1[5]);
-                    _k2 = vdup_n_s8(kernel2[5]);
-                    _k3 = vdup_n_s8(kernel3[5]);                   
-
-                    _sum0 = vmlal_s8(_sum0, _r12, _k0);
-                    _sum1 = vmlal_s8(_sum1, _r12, _k1);
-                    _sum2 = vmlal_s8(_sum2, _r12, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r12, _k3);                   
-
-                    int8x8x2_t _r2 = vld2_s8(r2);
-                    int8x8x2_t _r2n = vld2_s8(r2+16);
-                    int8x8_t _r20 = _r2.val[0];
-                    int8x8_t _r21 = _r2.val[1];
-                    int8x8_t _r22 = vext_s8(_r20, _r2n.val[0], 1);
-
-                    _k0 = vdup_n_s8(kernel0[6]);
-                    _k1 = vdup_n_s8(kernel1[6]);
-                    _k2 = vdup_n_s8(kernel2[6]);
-                    _k3 = vdup_n_s8(kernel3[6]);                    
-
-                    _sum0 = vmlal_s8(_sum0, _r20, _k0);
-                    _sum1 = vmlal_s8(_sum1, _r20, _k1);
-                    _sum2 = vmlal_s8(_sum2, _r20, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r20, _k3);              
-
-                    _k0 = vdup_n_s8(kernel0[7]);
-                    _k1 = vdup_n_s8(kernel1[7]);
-                    _k2 = vdup_n_s8(kernel2[7]);
-                    _k3 = vdup_n_s8(kernel3[7]);                                      
-
-                    _sum0 = vmlal_s8(_sum0, _r21, _k0);
-                    _sum1 = vmlal_s8(_sum1, _r21, _k1);
-                    _sum2 = vmlal_s8(_sum2, _r21, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r21, _k3);                  
-
-                    _k0 = vdup_n_s8(kernel0[8]);
-                    _k1 = vdup_n_s8(kernel1[8]);
-                    _k2 = vdup_n_s8(kernel2[8]);
-                    _k3 = vdup_n_s8(kernel3[8]);                  
-
-                    _sum0 = vmlal_s8(_sum0, _r22, _k0);
-                    _sum1 = vmlal_s8(_sum1, _r22, _k1);
-                    _sum2 = vmlal_s8(_sum2, _r22, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r22, _k3);                   
-
-                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
-                    int32x4_t sum0n_s32 = vld1q_s32(outptr0+4);
-
-                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
-                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));                    
-
-                    vst1q_s32(outptr0, sum0_s32);
-                    vst1q_s32(outptr0+4, sum0n_s32);
-
-                    int32x4_t sum1_s32 = vld1q_s32(outptr1);
-                    int32x4_t sum1n_s32 = vld1q_s32(outptr1+4);
-
-                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
-                    sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1));                    
-
-                    vst1q_s32(outptr1, sum1_s32);
-                    vst1q_s32(outptr1+4, sum1n_s32);
-
-                    int32x4_t sum2_s32 = vld1q_s32(outptr2);
-                    int32x4_t sum2n_s32 = vld1q_s32(outptr2+4);
-
-                    sum2_s32 = vaddw_s16(sum2_s32, vget_low_s16(_sum2));
-                    sum2n_s32 = vaddw_s16(sum2n_s32, vget_high_s16(_sum2));         
-
-                    vst1q_s32(outptr2, sum2_s32);
-                    vst1q_s32(outptr2+4, sum2n_s32);
-
-                    int32x4_t sum3_s32 = vld1q_s32(outptr3);
-                    int32x4_t sum3n_s32 = vld1q_s32(outptr3+4);
-
-                    sum3_s32 = vaddw_s16(sum3_s32, vget_low_s16(_sum3));
-                    sum3n_s32 = vaddw_s16(sum3n_s32, vget_high_s16(_sum3));                    
-
-                    vst1q_s32(outptr3, sum3_s32);
-                    vst1q_s32(outptr3+4, sum3n_s32);                   
-
-                    r0 += 16;
-                    r1 += 16;
-                    r2 += 16;
-                    outptr0 += 8;
-                    outptr1 += 8;
-                    outptr2 += 8;
-                    outptr3 += 8;                        
+                    "st1    {v17.4s}, [%1], #16        \n"
+                    "st1    {v18.s}[0], [%1], #4       \n"
+                    "st1    {v19.4s}, [%2], #16        \n"
+                    "st1    {v20.s}[0], [%2], #4       \n"                      
+                    "st1    {v21.4s}, [%3], #16        \n"
+                    "st1    {v22.s}[0], [%3], #4       \n"
+                    "st1    {v23.4s}, [%4], #16        \n"
+                    "st1    {v24.s}[0], [%4], #4       \n"
+                    "sub    %5, %5, #6                 \n"
+                    "sub    %6, %6, #6                 \n"
+                    "sub    %7, %7, #6                 \n"
+                    : "=r"(nn),         //%0
+                      "=r"(outptr0),    //%1
+                      "=r"(outptr1),	//%2
+                      "=r"(outptr2),	//%3
+                      "=r"(outptr3),	//%4
+                      "=r"(r0),			//%5
+                      "=r"(r1),			//%6
+                      "=r"(r2)			//%7
+                    : "0"(nn),
+                      "1"(outptr0),
+                      "2"(outptr1),
+                      "3"(outptr2),
+                      "4"(outptr3),
+                      "5"(r0),
+                      "6"(r1),
+                      "7"(r2),
+                      "w"(_k0),			//%16
+                      "w"(_k1),			//%17
+                      "w"(_k2),			//%18
+                      "w"(_k3) 			//%19
+                    : "cc", "memory", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24"
+                );
                 }
 
                 if (remain >= 4)
                 {
                     remain -= 4;
 
-                    int8x8x2_t _r0 = vld2_s8(r0);
-                    int8x8x2_t _r0n = vld2_s8(r0+16);
-                    int8x8_t _r00 = _r0.val[0];
-                    int8x8_t _r01 = _r0.val[1];
-                    int8x8_t _r02 = vext_s8(_r00, _r0n.val[0], 1);
+                asm volatile(
+                    // r0
+                    "prfm   pldl1keep, [%5, #128]      \n"
+                    "ld2    {v4.8b, v5.8b}, [%5], #16  \n"
+                    "ld2    {v6.8b, v7.8b}, [%5]       \n"
+                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
+                    
+                    "dup    v9.8b,  %16.b[0]           \n"
+                    "dup    v10.8b, %17.b[0]           \n"
+                    "dup    v11.8b, %18.b[0]           \n"
+                    "dup    v12.8b, %19.b[0]           \n"
+                    
+                    "smull  v13.8h, v4.8b, v9.8b       \n"
+                    "smull  v14.8h, v4.8b, v10.8b      \n"
+                    "smull  v15.8h, v4.8b, v11.8b      \n"
+                    "smull  v16.8h, v4.8b, v12.8b      \n"
 
-                    int8x8_t _k0 = vdup_n_s8(kernel0[0]);
-                    int8x8_t _k1 = vdup_n_s8(kernel1[0]);
-                    int8x8_t _k2 = vdup_n_s8(kernel2[0]);
-                    int8x8_t _k3 = vdup_n_s8(kernel3[0]);
+                    "dup    v9.8b, %16.b[1]            \n"
+                    "dup    v10.8b, %17.b[1]           \n"
+                    "dup    v11.8b, %18.b[1]           \n"
+                    "dup    v12.8b, %19.b[1]           \n"
+                    
+                    "smlal  v13.8h, v5.8b, v9.8b       \n"
+                    "smlal  v14.8h, v5.8b, v10.8b      \n"
+                    "smlal  v15.8h, v5.8b, v11.8b      \n"
+                    "smlal  v16.8h, v5.8b, v12.8b      \n"
+                    
+                    "dup    v9.8b, %16.b[2]            \n"
+                    "dup    v10.8b, %17.b[2]           \n"
+                    "dup    v11.8b, %18.b[2]           \n"
+                    "dup    v12.8b, %19.b[2]           \n"
+                    
+                    "smlal  v13.8h, v8.8b, v9.8b       \n"
+                    "smlal  v14.8h, v8.8b, v10.8b      \n"
+                    "smlal  v15.8h, v8.8b, v11.8b      \n"
+                    "smlal  v16.8h, v8.8b, v12.8b      \n"
+                    // r1
+                    "prfm   pldl1keep, [%6, #128]      \n"
+                    "ld2    {v4.8b, v5.8b}, [%6], #16  \n"
+                    "ld2    {v6.8b, v7.8b}, [%6]       \n"
+                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
+                    
+                    "dup    v9.8b, %16.b[3]            \n"
+                    "dup    v10.8b, %17.b[3]           \n"
+                    "dup    v11.8b, %18.b[3]           \n"
+                    "dup    v12.8b, %19.b[3]           \n"
+                    
+                    "smlal  v13.8h, v4.8b, v9.8b       \n"
+                    "smlal  v14.8h, v4.8b, v10.8b      \n"
+                    "smlal  v15.8h, v4.8b, v11.8b      \n"
+                    "smlal  v16.8h, v4.8b, v12.8b      \n"
 
-                    int16x8_t _sum0 = vmull_s8(_r00, _k0);
-                    int16x8_t _sum1 = vmull_s8(_r00, _k1);
-                    int16x8_t _sum2 = vmull_s8(_r00, _k2);
-                    int16x8_t _sum3 = vmull_s8(_r00, _k3);
+                    "dup    v9.8b, %16.b[4]            \n"
+                    "dup    v10.8b, %17.b[4]           \n"
+                    "dup    v11.8b, %18.b[4]           \n"
+                    "dup    v12.8b, %19.b[4]           \n"
+                    
+                    "smlal  v13.8h, v5.8b, v9.8b       \n"
+                    "smlal  v14.8h, v5.8b, v10.8b      \n"
+                    "smlal  v15.8h, v5.8b, v11.8b      \n"
+                    "smlal  v16.8h, v5.8b, v12.8b      \n"
+                    
+                    "dup    v9.8b, %16.b[5]            \n"
+                    "dup    v10.8b, %17.b[5]           \n"
+                    "dup    v11.8b, %18.b[5]           \n"
+                    "dup    v12.8b, %19.b[5]           \n"
+                    
+                    "smlal  v13.8h, v8.8b, v9.8b       \n"
+                    "smlal  v14.8h, v8.8b, v10.8b      \n"
+                    "smlal  v15.8h, v8.8b, v11.8b      \n"
+                    "smlal  v16.8h, v8.8b, v12.8b      \n"	
+                    // r2
+                    "prfm   pldl1keep, [%7, #128]      \n"
+                    "ld2    {v4.8b, v5.8b}, [%7], #16  \n"
+                    "ld2    {v6.8b, v7.8b}, [%7]       \n"
+                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
+                    
+                    "dup    v9.8b, %16.b[6]            \n"
+                    "dup    v10.8b, %17.b[6]           \n"
+                    "dup    v11.8b, %18.b[6]           \n"
+                    "dup    v12.8b, %19.b[6]           \n"
+                    
+                    "smlal  v13.8h, v4.8b, v9.8b       \n"
+                    "smlal  v14.8h, v4.8b, v10.8b      \n"
+                    "smlal  v15.8h, v4.8b, v11.8b      \n"
+                    "smlal  v16.8h, v4.8b, v12.8b      \n"
 
-                    _k0 = vdup_n_s8(kernel0[1]);
-                    _k1 = vdup_n_s8(kernel1[1]);
-                    _k2 = vdup_n_s8(kernel2[1]);
-                    _k3 = vdup_n_s8(kernel3[1]);
+                    "dup    v9.8b, %16.b[7]            \n"
+                    "dup    v10.8b, %17.b[7]           \n"
+                    "dup    v11.8b, %18.b[7]           \n"
+                    "dup    v12.8b, %19.b[7]           \n"
+                    
+                    "smlal  v13.8h, v5.8b, v9.8b       \n"
+                    "smlal  v14.8h, v5.8b, v10.8b      \n"
+                    "smlal  v15.8h, v5.8b, v11.8b      \n"
+                    "smlal  v16.8h, v5.8b, v12.8b      \n"
+                    
+                    "dup    v9.8b, %16.b[8]            \n"
+                    "dup    v10.8b, %17.b[8]           \n"
+                    "dup    v11.8b, %18.b[8]           \n"
+                    "dup    v12.8b, %19.b[8]           \n"
+                    
+                    "smlal  v13.8h, v8.8b, v9.8b       \n"
+                    "smlal  v14.8h, v8.8b, v10.8b      \n"
+                    "smlal  v15.8h, v8.8b, v11.8b      \n"
+                    "smlal  v16.8h, v8.8b, v12.8b      \n"
+                    // sum0 - sum3
+                    "prfm   pldl1keep, [%1, #128]      \n"
+                    "prfm   pldl1keep, [%2, #128]      \n"
+                    "prfm   pldl1keep, [%3, #128]      \n"
+                    "prfm   pldl1keep, [%4, #128]      \n"
+                    "ld1    {v17.4s}, [%1]             \n"
+                    "ld1    {v19.4s}, [%2]             \n"
+                    "ld1    {v21.4s}, [%3]             \n"
+                    "ld1    {v23.4s}, [%4]             \n"
 
-                    _sum0 = vmlal_s8(_sum0, _r01, _k0);
-                    _sum1 = vmlal_s8(_sum1, _r01, _k1);
-                    _sum2 = vmlal_s8(_sum2, _r01, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r01, _k3);
+                    "saddw  v17.4s, v17.4s, v13.4h     \n"
+                    "saddw  v19.4s, v19.4s, v14.4h     \n"
+                    "saddw  v21.4s, v21.4s, v15.4h     \n"
+                    "saddw  v23.4s, v23.4s, v16.4h     \n"
 
-                    _k0 = vdup_n_s8(kernel0[2]);
-                    _k1 = vdup_n_s8(kernel1[2]);
-                    _k2 = vdup_n_s8(kernel2[2]);
-                    _k3 = vdup_n_s8(kernel3[2]);
-
-                    _sum0 = vmlal_s8(_sum0, _r02, _k0);
-                    _sum1 = vmlal_s8(_sum1, _r02, _k1);
-                    _sum2 = vmlal_s8(_sum2, _r02, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r02, _k3);
-
-                    int8x8x2_t _r1 = vld2_s8(r1);
-                    int8x8x2_t _r1n = vld2_s8(r1+16);
-                    int8x8_t _r10 = _r1.val[0];
-                    int8x8_t _r11 = _r1.val[1];
-                    int8x8_t _r12 = vext_s8(_r10, _r1n.val[0], 1);
-
-                    _k0 = vdup_n_s8(kernel0[3]);
-                    _k1 = vdup_n_s8(kernel1[3]);
-                    _k2 = vdup_n_s8(kernel2[3]);
-                    _k3 = vdup_n_s8(kernel3[3]);
-
-                    _sum0 = vmlal_s8(_sum0, _r10, _k0);
-                    _sum1 = vmlal_s8(_sum1, _r10, _k1);
-                    _sum2 = vmlal_s8(_sum2, _r10, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r10, _k3);
-
-                    _k0 = vdup_n_s8(kernel0[4]);
-                    _k1 = vdup_n_s8(kernel1[4]);
-                    _k2 = vdup_n_s8(kernel2[4]);
-                    _k3 = vdup_n_s8(kernel3[4]);
-
-                    _sum0 = vmlal_s8(_sum0, _r11, _k0);
-                    _sum1 = vmlal_s8(_sum1, _r11, _k1);
-                    _sum2 = vmlal_s8(_sum2, _r11, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r11, _k3);
-
-                    _k0 = vdup_n_s8(kernel0[5]);
-                    _k1 = vdup_n_s8(kernel1[5]);
-                    _k2 = vdup_n_s8(kernel2[5]);
-                    _k3 = vdup_n_s8(kernel3[5]);
-
-                    _sum0 = vmlal_s8(_sum0, _r12, _k0);
-                    _sum1 = vmlal_s8(_sum1, _r12, _k1);
-                    _sum2 = vmlal_s8(_sum2, _r12, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r12, _k3);
-
-                    int8x8x2_t _r2 = vld2_s8(r2);
-                    int8x8x2_t _r2n = vld2_s8(r2+16);
-                    int8x8_t _r20 = _r2.val[0];
-                    int8x8_t _r21 = _r2.val[1];
-                    int8x8_t _r22 = vext_s8(_r20, _r2n.val[0], 1);
-
-                    _k0 = vdup_n_s8(kernel0[6]);
-                    _k1 = vdup_n_s8(kernel1[6]);
-                    _k2 = vdup_n_s8(kernel2[6]);
-                    _k3 = vdup_n_s8(kernel3[6]);
-
-                    _sum0 = vmlal_s8(_sum0, _r20, _k0);
-                    _sum1 = vmlal_s8(_sum1, _r20, _k1);
-                    _sum2 = vmlal_s8(_sum2, _r20, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r20, _k3);
-
-                    _k0 = vdup_n_s8(kernel0[7]);
-                    _k1 = vdup_n_s8(kernel1[7]);
-                    _k2 = vdup_n_s8(kernel2[7]);
-                    _k3 = vdup_n_s8(kernel3[7]);
-
-                    _sum0 = vmlal_s8(_sum0, _r21, _k0);
-                    _sum1 = vmlal_s8(_sum1, _r21, _k1);
-                    _sum2 = vmlal_s8(_sum2, _r21, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r21, _k3);
-
-                    _k0 = vdup_n_s8(kernel0[8]);
-                    _k1 = vdup_n_s8(kernel1[8]);
-                    _k2 = vdup_n_s8(kernel2[8]);
-                    _k3 = vdup_n_s8(kernel3[8]);
-
-                    _sum0 = vmlal_s8(_sum0, _r22, _k0);
-                    _sum1 = vmlal_s8(_sum1, _r22, _k1);
-                    _sum2 = vmlal_s8(_sum2, _r22, _k2);
-                    _sum3 = vmlal_s8(_sum3, _r22, _k3);
-
-                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
-                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
-                    vst1q_s32(outptr0, sum0_s32);
-
-                    int32x4_t sum1_s32 = vld1q_s32(outptr1);
-                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
-                    vst1q_s32(outptr1, sum1_s32);
-
-                    int32x4_t sum2_s32 = vld1q_s32(outptr2);
-                    sum2_s32 = vaddw_s16(sum2_s32, vget_low_s16(_sum2));
-                    vst1q_s32(outptr2, sum2_s32);
-
-                    int32x4_t sum3_s32 = vld1q_s32(outptr3);
-                    sum3_s32 = vaddw_s16(sum3_s32, vget_low_s16(_sum3));
-                    vst1q_s32(outptr3, sum3_s32);
-
-                    r0 += 8;
-                    r1 += 8;
-                    r2 += 8;
-                    outptr0 += 4;
-                    outptr1 += 4;
-                    outptr2 += 4;
-                    outptr3 += 4;
+                    "st1    {v17.4s}, [%1], #16        \n"
+                    "st1    {v19.4s}, [%2], #16        \n"
+                    "st1    {v21.4s}, [%3], #16        \n"
+                    "st1    {v23.4s}, [%4], #16        \n"
+                    "sub    %5, %5, #8                 \n"
+                    "sub    %6, %6, #8                 \n"
+                    "sub    %7, %7, #8                 \n"
+                    : "=r"(nn),         //%0
+                      "=r"(outptr0),    //%1
+                      "=r"(outptr1),	//%2
+                      "=r"(outptr2),	//%3
+                      "=r"(outptr3),	//%4
+                      "=r"(r0),			//%5
+                      "=r"(r1),			//%6
+                      "=r"(r2)			//%7
+                    : "0"(nn),
+                      "1"(outptr0),
+                      "2"(outptr1),
+                      "3"(outptr2),
+                      "4"(outptr3),
+                      "5"(r0),
+                      "6"(r1),
+                      "7"(r2),
+                      "w"(_k0),			//%16
+                      "w"(_k1),			//%17
+                      "w"(_k2),			//%18
+                      "w"(_k3) 			//%19
+                    : "cc", "memory", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24"
+                );
                 }
 
                 for (; remain>0; remain--)
