@@ -1688,12 +1688,13 @@ static void conv3x3s2_neon_s8_left5(const Mat& bottom_blob, Mat& top_blob, const
                     "prfm   pldl1keep, [%5, #128]      \n"
                     "ld2    {v4.8b, v5.8b}, [%5], #16  \n"
                     "ld2    {v6.8b, v7.8b}, [%5]       \n"
-                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
-                    
+
                     "dup    v9.8b,  %16.b[0]           \n"
                     "dup    v10.8b, %17.b[0]           \n"
                     "dup    v11.8b, %18.b[0]           \n"
                     "dup    v12.8b, %19.b[0]           \n"
+
+                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
                     
                     "smull  v13.8h, v4.8b, v9.8b       \n"
                     "smull  v14.8h, v4.8b, v10.8b      \n"
@@ -1723,12 +1724,13 @@ static void conv3x3s2_neon_s8_left5(const Mat& bottom_blob, Mat& top_blob, const
                     "prfm   pldl1keep, [%6, #128]      \n"
                     "ld2    {v4.8b, v5.8b}, [%6], #16  \n"
                     "ld2    {v6.8b, v7.8b}, [%6]       \n"
-                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
-                    
+
                     "dup    v9.8b, %16.b[3]            \n"
                     "dup    v10.8b, %17.b[3]           \n"
                     "dup    v11.8b, %18.b[3]           \n"
                     "dup    v12.8b, %19.b[3]           \n"
+
+                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
                     
                     "smlal  v13.8h, v4.8b, v9.8b       \n"
                     "smlal  v14.8h, v4.8b, v10.8b      \n"
@@ -1758,13 +1760,14 @@ static void conv3x3s2_neon_s8_left5(const Mat& bottom_blob, Mat& top_blob, const
                     "prfm   pldl1keep, [%7, #128]      \n"
                     "ld2    {v4.8b, v5.8b}, [%7], #16  \n"
                     "ld2    {v6.8b, v7.8b}, [%7]       \n"
-                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
-                    
+
                     "dup    v9.8b, %16.b[6]            \n"
                     "dup    v10.8b, %17.b[6]           \n"
                     "dup    v11.8b, %18.b[6]           \n"
                     "dup    v12.8b, %19.b[6]           \n"
-                    
+
+                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
+ 
                     "smlal  v13.8h, v4.8b, v9.8b       \n"
                     "smlal  v14.8h, v4.8b, v10.8b      \n"
                     "smlal  v15.8h, v4.8b, v11.8b      \n"
@@ -1846,12 +1849,13 @@ static void conv3x3s2_neon_s8_left5(const Mat& bottom_blob, Mat& top_blob, const
                     "prfm   pldl1keep, [%5, #128]      \n"
                     "ld2    {v4.8b, v5.8b}, [%5], #16  \n"
                     "ld2    {v6.8b, v7.8b}, [%5]       \n"
-                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
-                    
+
                     "dup    v9.8b,  %16.b[0]           \n"
                     "dup    v10.8b, %17.b[0]           \n"
                     "dup    v11.8b, %18.b[0]           \n"
                     "dup    v12.8b, %19.b[0]           \n"
+
+                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
                     
                     "smull  v13.8h, v4.8b, v9.8b       \n"
                     "smull  v14.8h, v4.8b, v10.8b      \n"
@@ -1881,12 +1885,13 @@ static void conv3x3s2_neon_s8_left5(const Mat& bottom_blob, Mat& top_blob, const
                     "prfm   pldl1keep, [%6, #128]      \n"
                     "ld2    {v4.8b, v5.8b}, [%6], #16  \n"
                     "ld2    {v6.8b, v7.8b}, [%6]       \n"
-                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
-                    
+
                     "dup    v9.8b, %16.b[3]            \n"
                     "dup    v10.8b, %17.b[3]           \n"
                     "dup    v11.8b, %18.b[3]           \n"
                     "dup    v12.8b, %19.b[3]           \n"
+
+                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
                     
                     "smlal  v13.8h, v4.8b, v9.8b       \n"
                     "smlal  v14.8h, v4.8b, v10.8b      \n"
@@ -1916,12 +1921,13 @@ static void conv3x3s2_neon_s8_left5(const Mat& bottom_blob, Mat& top_blob, const
                     "prfm   pldl1keep, [%7, #128]      \n"
                     "ld2    {v4.8b, v5.8b}, [%7], #16  \n"
                     "ld2    {v6.8b, v7.8b}, [%7]       \n"
-                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
-                    
+
                     "dup    v9.8b, %16.b[6]            \n"
                     "dup    v10.8b, %17.b[6]           \n"
                     "dup    v11.8b, %18.b[6]           \n"
                     "dup    v12.8b, %19.b[6]           \n"
+
+                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
                     
                     "smlal  v13.8h, v4.8b, v9.8b       \n"
                     "smlal  v14.8h, v4.8b, v10.8b      \n"
