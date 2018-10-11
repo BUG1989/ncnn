@@ -114,9 +114,9 @@ int Pooling_arm::forward_int8(const Mat& bottom_blob, Mat& top_blob, const Optio
         return -100;
 
     if (kernel_size == 2)
-        pooling2x2s2_max_neon(bottom_blob_bordered, top_blob, opt);
+        pooling2x2s2_max_int8_neon(bottom_blob_bordered, top_blob, opt);
     if (kernel_size == 3)
-        pooling3x3s2_max_neon(bottom_blob_bordered, top_blob, opt);
+        pooling3x3s2_max_int8_neon(bottom_blob_bordered, top_blob, opt);
 
     return 0;
 }
@@ -125,8 +125,7 @@ int Pooling_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option& op
 {
     if (use_int8_inference)
     {
-        //return Pooling_arm::forward(bottom_blob, top_blob, opt);
-        return Pooling::forward(bottom_blob, top_blob, opt);
+        return Pooling_arm::forward_int8(bottom_blob, top_blob, opt);
     }
 
     // max value in NxN window

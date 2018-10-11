@@ -636,7 +636,7 @@ static void conv1x1s1_neon_s8(const Mat &bottom_blob, Mat &top_blob, const Mat &
                 "dup    v27.16b, %56.b[7]            \n" // k07
 
                 "smlal  v28.8h, v12.8b, v24.8b       \n"
-                "smlal2  v31.8h, v12.16b, v24.16     \n"
+                "smlal2  v31.8h, v12.16b, v24.16b    \n"
                 "prfm   pldl1keep, [%7, #128]        \n"
                 "ld1    {v29.4s, v30.4s}, [%7]       \n" // sum6 
 
