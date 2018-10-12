@@ -80,3 +80,27 @@ https://github.com/Tencent/ncnn/tree/master/examples/squeezencnn
 
 BSD 3 Clause
 
+---
+
+### 本分支说明
+
+这个分支是用于ncnn int8新特的开发，不稳定版本，无法保证所有模型都能使用，我在这里测试好之后，才会Pull Request到ncnn master分支。
+
+---
+
+### Benchmark(不定时更新)
+
+测试平台使用瑞星微的RK3399(Cortex-A72@1.8GHz x 2 + Cortex-A53@1.5GHz x 4)，android系统版本7.1.0，baseline参考Open AI Lab的Tengine推理框架，该框架支持Int8推理。
+
+|                 | ncnn-A72x2 | Tengine-A72x2 | ncnn-A53x4 | Tengine-A53x4 |
+| --------------- | ---------- | ------------- | ---------- | ------------- |
+| SqueezeNet v1.1 |            |               |            |               |
+| Float32         | 51.6       | 49.5          | 59.2       | 66.5          |
+| Int8            | 35.4       | 36.5          | 44.8       | 55.5          |
+| MobileNet_v1    |            |               |            |               |
+| Float32         | 82.8       | 64.1          | 78.3       | 66.5          |
+| Int8            | 50.4       | 44            | 60.7       | 58            |
+| MobileNet SSD   |            |               |            |               |
+| Float32         | 158        | null          | 163        | null          |
+| Int8            | 101        | 89            | 120        | 127           |
+
