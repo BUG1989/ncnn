@@ -147,100 +147,132 @@ static void conv3x3s1_int8_neon(const Mat &bottom_blob, Mat &top_blob, const Mat
                     int8x8_t _r01 = vext_s8(_r0, _r0n, 1);
                     int8x8_t _r02 = vext_s8(_r0, _r0n, 2);
 
+                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
+                    int32x4_t sum0n_s32 = vld1q_s32(outptr0+4);
+                    int32x4_t sum1_s32 = vld1q_s32(outptr0n);
+                    int32x4_t sum1n_s32 = vld1q_s32(outptr0n+4);
+
                     int16x8_t _sum0 = vmull_s8(_r0, _k00);
                     _sum0 = vmlal_s8(_sum0, _r01, _k01);
-                    _sum0 = vmlal_s8(_sum0, _r02, _k02);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
 
                     int8x8_t _r1 = vld1_s8(r1);
                     int8x8_t _r1n = vld1_s8(r1+8);
                     int8x8_t _r11 = vext_s8(_r1, _r1n, 1);
                     int8x8_t _r12 = vext_s8(_r1, _r1n, 2);
+                    _sum0 = vmull_s8(_r02, _k02);
                     _sum0 = vmlal_s8(_sum0, _r1, _k03);
-                    _sum0 = vmlal_s8(_sum0, _r11, _k04);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));                    
+
+                    _sum0 = vmull_s8(_r11, _k04);
                     _sum0 = vmlal_s8(_sum0, _r12, _k05);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
 
                     int16x8_t _sum1 = vmull_s8(_r1, _k00);
                     _sum1 = vmlal_s8(_sum1, _r11, _k01);
-                    _sum1 = vmlal_s8(_sum1, _r12, _k02);
+                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
+                    sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1));
 
                     int8x8_t _r2 = vld1_s8(r2);
                     int8x8_t _r2n = vld1_s8(r2+8);
                     int8x8_t _r21 = vext_s8(_r2, _r2n, 1);
                     int8x8_t _r22 = vext_s8(_r2, _r2n, 2);
-                    _sum0 = vmlal_s8(_sum0, _r2, _k06);
+                    _sum0 = vmull_s8(_r2, _k06);
                     _sum0 = vmlal_s8(_sum0, _r21, _k07);
-                    _sum0 = vmlal_s8(_sum0, _r22, _k08);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
 
+                    _sum0 = vmull_s8(_r22, _k08);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));                    
+
+                    _sum1 = vmull_s8(_r12, _k02);
                     _sum1 = vmlal_s8(_sum1, _r2, _k03);
-                    _sum1 = vmlal_s8(_sum1, _r21, _k04);
+                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
+                    sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1));
+
+                    _sum1 = vmull_s8(_r21, _k04);
                     _sum1 = vmlal_s8(_sum1, _r22, _k05);
+                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
+                    sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1));                    
 
                     int8x8_t _r3 = vld1_s8(r3);
                     int8x8_t _r3n = vld1_s8(r3+8);
                     int8x8_t _r31 = vext_s8(_r3, _r3n, 1);
                     int8x8_t _r32 = vext_s8(_r3, _r3n, 2);
-                    _sum1 = vmlal_s8(_sum1, _r3, _k06);
+                    _sum1 = vmull_s8(_r3, _k06);
                     _sum1 = vmlal_s8(_sum1, _r31, _k07);
-                    _sum1 = vmlal_s8(_sum1, _r32, _k08);
-
-                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
-                    int32x4_t sum0n_s32 = vld1q_s32(outptr0+4);
-
-                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
-                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
-
-                    vst1q_s32(outptr0, sum0_s32);
-                    vst1q_s32(outptr0+4, sum0n_s32);
-
-                    int32x4_t sum1_s32 = vld1q_s32(outptr0n);
-                    int32x4_t sum1n_s32 = vld1q_s32(outptr0n+4);
-
                     sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
                     sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1));
 
+                    _sum1 = vmull_s8(_r32, _k08);
+                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
+                    sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1));
+
+                    vst1q_s32(outptr0, sum0_s32);
+                    vst1q_s32(outptr0+4, sum0n_s32);
                     vst1q_s32(outptr0n, sum1_s32);
                     vst1q_s32(outptr0n+4, sum1n_s32);
 
                     // outch 1
-                    _sum0 = vmull_s8(_r0, _k10);
-                    _sum0 = vmlal_s8(_sum0, _r01, _k11);
-                    _sum0 = vmlal_s8(_sum0, _r02, _k12);
-
-                    _sum0 = vmlal_s8(_sum0, _r1, _k13);
-                    _sum0 = vmlal_s8(_sum0, _r11, _k14);
-                    _sum0 = vmlal_s8(_sum0, _r12, _k15);
-
-                    _sum0 = vmlal_s8(_sum0, _r2, _k16);
-                    _sum0 = vmlal_s8(_sum0, _r21, _k17);
-                    _sum0 = vmlal_s8(_sum0, _r22, _k18);
-
-                    _sum1 = vmull_s8(_r1, _k10);
-                    _sum1 = vmlal_s8(_sum1, _r11, _k11);
-                    _sum1 = vmlal_s8(_sum1, _r12, _k12);
-
-                    _sum1 = vmlal_s8(_sum1, _r2, _k13);
-                    _sum1 = vmlal_s8(_sum1, _r21, _k14);
-                    _sum1 = vmlal_s8(_sum1, _r22, _k15);
-
-                    _sum1 = vmlal_s8(_sum1, _r3, _k16);
-                    _sum1 = vmlal_s8(_sum1, _r31, _k17);
-                    _sum1 = vmlal_s8(_sum1, _r32, _k18);
-
                     sum0_s32 = vld1q_s32(outptr1);
                     sum0n_s32 = vld1q_s32(outptr1+4);
-
-                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
-                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
-
-                    vst1q_s32(outptr1, sum0_s32);
-                    vst1q_s32(outptr1+4, sum0n_s32);
-
                     sum1_s32 = vld1q_s32(outptr1n);
                     sum1n_s32 = vld1q_s32(outptr1n+4);
 
+                    _sum0 = vmull_s8(_r0, _k10);
+                    _sum0 = vmlal_s8(_sum0, _r01, _k11);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
+
+                    _sum0 = vmull_s8(_r02, _k12);
+                    _sum0 = vmlal_s8(_sum0, _r1, _k13);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
+
+                    _sum0 = vmull_s8(_r11, _k14);
+                    _sum0 = vmlal_s8(_sum0, _r12, _k15);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
+
+                    _sum0 = vmull_s8(_r2, _k16);
+                    _sum0 = vmlal_s8(_sum0, _r21, _k17);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
+
+                    _sum0 = vmull_s8(_r22, _k18);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
+                    
+                    _sum1 = vmull_s8(_r1, _k10);
+                    _sum1 = vmlal_s8(_sum1, _r11, _k11);
                     sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
                     sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1));
 
+                    _sum1 = vmull_s8(_r12, _k12);
+                    _sum1 = vmlal_s8(_sum1, _r2, _k13);
+                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
+                    sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1));
+
+                    _sum1 = vmull_s8(_r21, _k14);
+                    _sum1 = vmlal_s8(_sum1, _r22, _k15);
+                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
+                    sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1));
+
+                    _sum1 = vmull_s8(_r3, _k16);
+                    _sum1 = vmlal_s8(_sum1, _r31, _k17);
+                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
+                    sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1));
+
+                    _sum1 = vmull_s8(_r32, _k18);
+                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
+                    sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1));
+
+                    vst1q_s32(outptr1, sum0_s32);
+                    vst1q_s32(outptr1+4, sum0n_s32);
                     vst1q_s32(outptr1n, sum1_s32);
                     vst1q_s32(outptr1n+4, sum1n_s32);
 
@@ -340,30 +372,38 @@ static void conv3x3s1_int8_neon(const Mat &bottom_blob, Mat &top_blob, const Mat
                     int8x8_t _r0n = vld1_s8(r0+8);
                     int8x8_t _r01 = vext_s8(_r0, _r0n, 1);
                     int8x8_t _r02 = vext_s8(_r0, _r0n, 2);
+                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
+                    int32x4_t sum0n_s32 = vld1q_s32(outptr0+4);                    
 
                     int16x8_t _sum0 = vmull_s8(_r0, _k00);
                     _sum0 = vmlal_s8(_sum0, _r01, _k01);
-                    _sum0 = vmlal_s8(_sum0, _r02, _k02);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));               
 
                     int8x8_t _r1 = vld1_s8(r1);
                     int8x8_t _r1n = vld1_s8(r1+8);
                     int8x8_t _r11 = vext_s8(_r1, _r1n, 1);
                     int8x8_t _r12 = vext_s8(_r1, _r1n, 2);
+                    _sum0 = vmull_s8(_r02, _k02);
                     _sum0 = vmlal_s8(_sum0, _r1, _k03);
-                    _sum0 = vmlal_s8(_sum0, _r11, _k04);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
+
+                    _sum0 = vmull_s8(_r11, _k04);
                     _sum0 = vmlal_s8(_sum0, _r12, _k05);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
 
                     int8x8_t _r2 = vld1_s8(r2);
                     int8x8_t _r2n = vld1_s8(r2+8);
                     int8x8_t _r21 = vext_s8(_r2, _r2n, 1);
                     int8x8_t _r22 = vext_s8(_r2, _r2n, 2);
-                    _sum0 = vmlal_s8(_sum0, _r2, _k06);
+                    _sum0 = vmull_s8(_r2, _k06);
                     _sum0 = vmlal_s8(_sum0, _r21, _k07);
-                    _sum0 = vmlal_s8(_sum0, _r22, _k08);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
 
-                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
-                    int32x4_t sum0n_s32 = vld1q_s32(outptr0+4);
-
+                    _sum0 = vmull_s8(_r22, _k08);
                     sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
                     sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
 
@@ -371,21 +411,30 @@ static void conv3x3s1_int8_neon(const Mat &bottom_blob, Mat &top_blob, const Mat
                     vst1q_s32(outptr0+4, sum0n_s32);
 
                     // outch 1
-                    _sum0 = vmull_s8(_r0, _k10);
-                    _sum0 = vmlal_s8(_sum0, _r01, _k11);
-                    _sum0 = vmlal_s8(_sum0, _r02, _k12);
-
-                    _sum0 = vmlal_s8(_sum0, _r1, _k13);
-                    _sum0 = vmlal_s8(_sum0, _r11, _k14);
-                    _sum0 = vmlal_s8(_sum0, _r12, _k15);
-
-                    _sum0 = vmlal_s8(_sum0, _r2, _k16);
-                    _sum0 = vmlal_s8(_sum0, _r21, _k17);
-                    _sum0 = vmlal_s8(_sum0, _r22, _k18);
-
                     sum0_s32 = vld1q_s32(outptr1);
                     sum0n_s32 = vld1q_s32(outptr1+4);
 
+                    _sum0 = vmull_s8(_r0, _k10);
+                    _sum0 = vmlal_s8(_sum0, _r01, _k11);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
+
+                    _sum0 = vmull_s8(_r02, _k12);
+                    _sum0 = vmlal_s8(_sum0, _r1, _k13);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
+
+                    _sum0 = vmull_s8(_r11, _k14);
+                    _sum0 = vmlal_s8(_sum0, _r12, _k15);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
+
+                    _sum0 = vmull_s8(_r2, _k16);
+                    _sum0 = vmlal_s8(_sum0, _r21, _k17);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
+
+                    _sum0 = vmull_s8(_r22, _k18);
                     sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
                     sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
 
@@ -489,56 +538,73 @@ static void conv3x3s1_int8_neon(const Mat &bottom_blob, Mat &top_blob, const Mat
                     int8x8_t _r01 = vext_s8(_r0, _r0n, 1);
                     int8x8_t _r02 = vext_s8(_r0, _r0n, 2);
 
+                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
+                    int32x4_t sum0n_s32 = vld1q_s32(outptr0+4);
+                    int32x4_t sum1_s32 = vld1q_s32(outptr0n);
+                    int32x4_t sum1n_s32 = vld1q_s32(outptr0n+4);
+
                     int16x8_t _sum0 = vmull_s8(_r0, _k00);
                     _sum0 = vmlal_s8(_sum0, _r01, _k01);
-                    _sum0 = vmlal_s8(_sum0, _r02, _k02);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
 
                     int8x8_t _r1 = vld1_s8(r1);
                     int8x8_t _r1n = vld1_s8(r1+8);
                     int8x8_t _r11 = vext_s8(_r1, _r1n, 1);
                     int8x8_t _r12 = vext_s8(_r1, _r1n, 2);
+                    _sum0 = vmull_s8(_r02, _k02);
                     _sum0 = vmlal_s8(_sum0, _r1, _k03);
-                    _sum0 = vmlal_s8(_sum0, _r11, _k04);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
+
+                    _sum0 = vmull_s8(_r11, _k04);
                     _sum0 = vmlal_s8(_sum0, _r12, _k05);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
 
                     int16x8_t _sum1 = vmull_s8(_r1, _k00);
                     _sum1 = vmlal_s8(_sum1, _r11, _k01);
-                    _sum1 = vmlal_s8(_sum1, _r12, _k02);
+                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
+                    sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1));
 
                     int8x8_t _r2 = vld1_s8(r2);
                     int8x8_t _r2n = vld1_s8(r2+8);
                     int8x8_t _r21 = vext_s8(_r2, _r2n, 1);
                     int8x8_t _r22 = vext_s8(_r2, _r2n, 2);
-                    _sum0 = vmlal_s8(_sum0, _r2, _k06);
+                    _sum0 = vmull_s8(_r2, _k06);
                     _sum0 = vmlal_s8(_sum0, _r21, _k07);
-                    _sum0 = vmlal_s8(_sum0, _r22, _k08);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));                    
 
+                    _sum0 = vmull_s8(_r22, _k08);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));                    
+
+                    _sum1 = vmull_s8(_r12, _k02);
                     _sum1 = vmlal_s8(_sum1, _r2, _k03);
-                    _sum1 = vmlal_s8(_sum1, _r21, _k04);
+                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
+                    sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1));
+
+                    _sum1 = vmull_s8(_r21, _k04);
                     _sum1 = vmlal_s8(_sum1, _r22, _k05);
+                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
+                    sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1));                    
 
                     int8x8_t _r3 = vld1_s8(r3);
                     int8x8_t _r3n = vld1_s8(r3+8);
                     int8x8_t _r31 = vext_s8(_r3, _r3n, 1);
                     int8x8_t _r32 = vext_s8(_r3, _r3n, 2);
-                    _sum1 = vmlal_s8(_sum1, _r3, _k06);
+                    _sum1 = vmull_s8(_r3, _k06);
                     _sum1 = vmlal_s8(_sum1, _r31, _k07);
-                    _sum1 = vmlal_s8(_sum1, _r32, _k08);
+                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
+                    sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1)); 
 
-                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
-                    int32x4_t sum0n_s32 = vld1q_s32(outptr0+4);
-
-                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
-                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0)); 
+                    _sum1 = vmull_s8(_r32, _k08);
+                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
+                    sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1));
 
                     vst1q_s32(outptr0, sum0_s32);
                     vst1q_s32(outptr0+4, sum0n_s32);
-
-                    int32x4_t sum1_s32 = vld1q_s32(outptr0n);
-                    int32x4_t sum1n_s32 = vld1q_s32(outptr0n+4);
-
-                    sum1_s32 = vaddw_s16(sum1_s32, vget_low_s16(_sum1));
-                    sum1n_s32 = vaddw_s16(sum1n_s32, vget_high_s16(_sum1));
 
                     vst1q_s32(outptr0n, sum1_s32);
                     vst1q_s32(outptr0n+4, sum1n_s32);
@@ -609,29 +675,38 @@ static void conv3x3s1_int8_neon(const Mat &bottom_blob, Mat &top_blob, const Mat
                     int8x8_t _r01 = vext_s8(_r0, _r0n, 1);
                     int8x8_t _r02 = vext_s8(_r0, _r0n, 2);
 
+                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
+                    int32x4_t sum0n_s32 = vld1q_s32(outptr0+4);
+
                     int16x8_t _sum0 = vmull_s8(_r0, _k00);
                     _sum0 = vmlal_s8(_sum0, _r01, _k01);
-                    _sum0 = vmlal_s8(_sum0, _r02, _k02);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));                  
 
                     int8x8_t _r1 = vld1_s8(r1);
                     int8x8_t _r1n = vld1_s8(r1+8);
                     int8x8_t _r11 = vext_s8(_r1, _r1n, 1);
                     int8x8_t _r12 = vext_s8(_r1, _r1n, 2);
+                    _sum0 = vmull_s8(_r02, _k02);
                     _sum0 = vmlal_s8(_sum0, _r1, _k03);
-                    _sum0 = vmlal_s8(_sum0, _r11, _k04);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
+
+                    _sum0 = vmull_s8(_r11, _k04);
                     _sum0 = vmlal_s8(_sum0, _r12, _k05);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
 
                     int8x8_t _r2 = vld1_s8(r2);
                     int8x8_t _r2n = vld1_s8(r2+8);
                     int8x8_t _r21 = vext_s8(_r2, _r2n, 1);
                     int8x8_t _r22 = vext_s8(_r2, _r2n, 2);
-                    _sum0 = vmlal_s8(_sum0, _r2, _k06);
+                    _sum0 = vmull_s8(_r2, _k06);
                     _sum0 = vmlal_s8(_sum0, _r21, _k07);
-                    _sum0 = vmlal_s8(_sum0, _r22, _k08);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
 
-                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
-                    int32x4_t sum0n_s32 = vld1q_s32(outptr0+4);
-
+                    _sum0 = vmull_s8(_r22, _k08);
                     sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum0));
                     sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum0));
 
@@ -746,6 +821,16 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     "ld2    {v6.8b, v7.8b}, [%5]       \n"
                     "ext    v8.8b, v4.8b, v6.8b, #1    \n"
 
+                    // load sum0 - sum3
+                    "prfm   pldl1keep, [%1, #128]      \n"
+                    "prfm   pldl1keep, [%2, #128]      \n"
+                    "prfm   pldl1keep, [%3, #128]      \n"
+                    "prfm   pldl1keep, [%4, #128]      \n"
+                    "ld1    {v17.4s, v18.4s}, [%1]     \n"
+                    "ld1    {v19.4s, v20.4s}, [%2]     \n"
+                    "ld1    {v21.4s, v22.4s}, [%3]     \n"
+                    "ld1    {v23.4s, v24.4s}, [%4]     \n"                    
+
                     "dup    v9.8b,  %16.b[0]           \n"
                     "dup    v10.8b, %17.b[0]           \n"
                     "dup    v11.8b, %18.b[0]           \n"
@@ -766,15 +851,24 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     "smlal  v15.8h, v5.8b, v11.8b      \n"
                     "smlal  v16.8h, v5.8b, v12.8b      \n"
 
+                    "saddw  v17.4s, v17.4s, v13.4h     \n"
+                    "saddw2  v18.4s, v18.4s, v13.8h    \n"
+                    "saddw  v19.4s, v19.4s, v14.4h     \n"
+                    "saddw2  v20.4s, v20.4s, v14.8h    \n"
+                    "saddw  v21.4s, v21.4s, v15.4h     \n"
+                    "saddw2  v22.4s, v22.4s, v15.8h    \n"
+                    "saddw  v23.4s, v23.4s, v16.4h     \n"
+                    "saddw2  v24.4s, v24.4s, v16.8h    \n"                    
+
                     "dup    v9.8b, %16.b[2]            \n"
                     "dup    v10.8b, %17.b[2]           \n"
                     "dup    v11.8b, %18.b[2]           \n"
                     "dup    v12.8b, %19.b[2]           \n"
 
-                    "smlal  v13.8h, v8.8b, v9.8b       \n"
-                    "smlal  v14.8h, v8.8b, v10.8b      \n"
-                    "smlal  v15.8h, v8.8b, v11.8b      \n"
-                    "smlal  v16.8h, v8.8b, v12.8b      \n"
+                    "smull  v13.8h, v8.8b, v9.8b       \n"
+                    "smull  v14.8h, v8.8b, v10.8b      \n"
+                    "smull  v15.8h, v8.8b, v11.8b      \n"
+                    "smull  v16.8h, v8.8b, v12.8b      \n"
                     // r1
                     "prfm   pldl1keep, [%6, #128]      \n"
                     "ld2    {v4.8b, v5.8b}, [%6], #16  \n"
@@ -791,15 +885,24 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     "smlal  v15.8h, v4.8b, v11.8b      \n"
                     "smlal  v16.8h, v4.8b, v12.8b      \n"
 
+                    "saddw  v17.4s, v17.4s, v13.4h     \n"
+                    "saddw2  v18.4s, v18.4s, v13.8h    \n"
+                    "saddw  v19.4s, v19.4s, v14.4h     \n"
+                    "saddw2  v20.4s, v20.4s, v14.8h    \n"
+                    "saddw  v21.4s, v21.4s, v15.4h     \n"
+                    "saddw2  v22.4s, v22.4s, v15.8h    \n"
+                    "saddw  v23.4s, v23.4s, v16.4h     \n"
+                    "saddw2  v24.4s, v24.4s, v16.8h    \n"                     
+
                     "dup    v9.8b, %16.b[4]            \n"
                     "dup    v10.8b, %17.b[4]           \n"
                     "dup    v11.8b, %18.b[4]           \n"
                     "dup    v12.8b, %19.b[4]           \n"
 
-                    "smlal  v13.8h, v5.8b, v9.8b       \n"
-                    "smlal  v14.8h, v5.8b, v10.8b      \n"
-                    "smlal  v15.8h, v5.8b, v11.8b      \n"
-                    "smlal  v16.8h, v5.8b, v12.8b      \n"
+                    "smull  v13.8h, v5.8b, v9.8b       \n"
+                    "smull  v14.8h, v5.8b, v10.8b      \n"
+                    "smull  v15.8h, v5.8b, v11.8b      \n"
+                    "smull  v16.8h, v5.8b, v12.8b      \n"
 
                     "dup    v9.8b, %16.b[5]            \n"
                     "dup    v10.8b, %17.b[5]           \n"
@@ -810,6 +913,15 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     "smlal  v14.8h, v8.8b, v10.8b      \n"
                     "smlal  v15.8h, v8.8b, v11.8b      \n"
                     "smlal  v16.8h, v8.8b, v12.8b      \n"
+
+                    "saddw  v17.4s, v17.4s, v13.4h     \n"
+                    "saddw2  v18.4s, v18.4s, v13.8h    \n"
+                    "saddw  v19.4s, v19.4s, v14.4h     \n"
+                    "saddw2  v20.4s, v20.4s, v14.8h    \n"
+                    "saddw  v21.4s, v21.4s, v15.4h     \n"
+                    "saddw2  v22.4s, v22.4s, v15.8h    \n"
+                    "saddw  v23.4s, v23.4s, v16.4h     \n"
+                    "saddw2  v24.4s, v24.4s, v16.8h    \n"            
                     // r2
                     "prfm   pldl1keep, [%7, #128]      \n"
                     "ld2    {v4.8b, v5.8b}, [%7], #16  \n"
@@ -821,10 +933,10 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     "dup    v11.8b, %18.b[6]           \n"
                     "dup    v12.8b, %19.b[6]           \n"
 
-                    "smlal  v13.8h, v4.8b, v9.8b       \n"
-                    "smlal  v14.8h, v4.8b, v10.8b      \n"
-                    "smlal  v15.8h, v4.8b, v11.8b      \n"
-                    "smlal  v16.8h, v4.8b, v12.8b      \n"
+                    "smull  v13.8h, v4.8b, v9.8b       \n"
+                    "smull  v14.8h, v4.8b, v10.8b      \n"
+                    "smull  v15.8h, v4.8b, v11.8b      \n"
+                    "smull  v16.8h, v4.8b, v12.8b      \n"
 
                     "dup    v9.8b, %16.b[7]            \n"
                     "dup    v10.8b, %17.b[7]           \n"
@@ -836,24 +948,24 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     "smlal  v15.8h, v5.8b, v11.8b      \n"
                     "smlal  v16.8h, v5.8b, v12.8b      \n"
 
+                    "saddw  v17.4s, v17.4s, v13.4h     \n"
+                    "saddw2  v18.4s, v18.4s, v13.8h    \n"
+                    "saddw  v19.4s, v19.4s, v14.4h     \n"
+                    "saddw2  v20.4s, v20.4s, v14.8h    \n"
+                    "saddw  v21.4s, v21.4s, v15.4h     \n"
+                    "saddw2  v22.4s, v22.4s, v15.8h    \n"
+                    "saddw  v23.4s, v23.4s, v16.4h     \n"
+                    "saddw2  v24.4s, v24.4s, v16.8h    \n" 
+
                     "dup    v9.8b, %16.b[8]            \n"
                     "dup    v10.8b, %17.b[8]           \n"
                     "dup    v11.8b, %18.b[8]           \n"
                     "dup    v12.8b, %19.b[8]           \n"
 
-                    "smlal  v13.8h, v8.8b, v9.8b       \n"
-                    "smlal  v14.8h, v8.8b, v10.8b      \n"
-                    "smlal  v15.8h, v8.8b, v11.8b      \n"
-                    "smlal  v16.8h, v8.8b, v12.8b      \n"
-                    // sum0 - sum3
-                    "prfm   pldl1keep, [%1, #128]      \n"
-                    "prfm   pldl1keep, [%2, #128]      \n"
-                    "prfm   pldl1keep, [%3, #128]      \n"
-                    "prfm   pldl1keep, [%4, #128]      \n"
-                    "ld1    {v17.4s, v18.4s}, [%1]     \n"
-                    "ld1    {v19.4s, v20.4s}, [%2]     \n"
-                    "ld1    {v21.4s, v22.4s}, [%3]     \n"
-                    "ld1    {v23.4s, v24.4s}, [%4]     \n"
+                    "smull  v13.8h, v8.8b, v9.8b       \n"
+                    "smull  v14.8h, v8.8b, v10.8b      \n"
+                    "smull  v15.8h, v8.8b, v11.8b      \n"
+                    "smull  v16.8h, v8.8b, v12.8b      \n"
 
                     "saddw  v17.4s, v17.4s, v13.4h     \n"
                     "saddw2  v18.4s, v18.4s, v13.8h    \n"
@@ -863,6 +975,8 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     "saddw2  v22.4s, v22.4s, v15.8h    \n"
                     "saddw  v23.4s, v23.4s, v16.4h     \n"
                     "saddw2  v24.4s, v24.4s, v16.8h    \n"
+
+                    // store sum0 - sum3
                     "st1    {v17.4s, v18.4s}, [%1], #32\n"
                     "st1    {v19.4s, v20.4s}, [%2], #32\n"
                     "st1    {v21.4s, v22.4s}, [%3], #32\n"
@@ -909,6 +1023,16 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     "dup    v11.8b, %18.b[0]           \n"
                     "dup    v12.8b, %19.b[0]           \n"
 
+                    // load sum0 - sum3
+                    "prfm   pldl1keep, [%1, #128]      \n"
+                    "prfm   pldl1keep, [%2, #128]      \n"
+                    "prfm   pldl1keep, [%3, #128]      \n"
+                    "prfm   pldl1keep, [%4, #128]      \n"
+                    "ld1    {v17.4s}, [%1]             \n"
+                    "ld1    {v19.4s}, [%2]             \n"
+                    "ld1    {v21.4s}, [%3]             \n"
+                    "ld1    {v23.4s}, [%4]             \n"
+
                     "smull  v13.8h, v4.8b, v9.8b       \n"
                     "smull  v14.8h, v4.8b, v10.8b      \n"
                     "smull  v15.8h, v4.8b, v11.8b      \n"
@@ -924,15 +1048,20 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     "smlal  v15.8h, v5.8b, v11.8b      \n"
                     "smlal  v16.8h, v5.8b, v12.8b      \n"
 
+                    "saddw  v17.4s, v17.4s, v13.4h     \n"
+                    "saddw  v19.4s, v19.4s, v14.4h     \n"
+                    "saddw  v21.4s, v21.4s, v15.4h     \n"
+                    "saddw  v23.4s, v23.4s, v16.4h     \n"
+
                     "dup    v9.8b, %16.b[2]            \n"
                     "dup    v10.8b, %17.b[2]           \n"
                     "dup    v11.8b, %18.b[2]           \n"
                     "dup    v12.8b, %19.b[2]           \n"
 
-                    "smlal  v13.8h, v8.8b, v9.8b       \n"
-                    "smlal  v14.8h, v8.8b, v10.8b      \n"
-                    "smlal  v15.8h, v8.8b, v11.8b      \n"
-                    "smlal  v16.8h, v8.8b, v12.8b      \n"
+                    "smull  v13.8h, v8.8b, v9.8b       \n"
+                    "smull  v14.8h, v8.8b, v10.8b      \n"
+                    "smull  v15.8h, v8.8b, v11.8b      \n"
+                    "smull  v16.8h, v8.8b, v12.8b      \n"
                     // r1
                     "prfm   pldl1keep, [%6, #128]      \n"
                     "ld2    {v4.8b, v5.8b}, [%6], #16  \n"
@@ -949,15 +1078,20 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     "smlal  v15.8h, v4.8b, v11.8b      \n"
                     "smlal  v16.8h, v4.8b, v12.8b      \n"
 
+                    "saddw  v17.4s, v17.4s, v13.4h     \n"
+                    "saddw  v19.4s, v19.4s, v14.4h     \n"
+                    "saddw  v21.4s, v21.4s, v15.4h     \n"
+                    "saddw  v23.4s, v23.4s, v16.4h     \n"
+
                     "dup    v9.8b, %16.b[4]            \n"
                     "dup    v10.8b, %17.b[4]           \n"
                     "dup    v11.8b, %18.b[4]           \n"
                     "dup    v12.8b, %19.b[4]           \n"
 
-                    "smlal  v13.8h, v5.8b, v9.8b       \n"
-                    "smlal  v14.8h, v5.8b, v10.8b      \n"
-                    "smlal  v15.8h, v5.8b, v11.8b      \n"
-                    "smlal  v16.8h, v5.8b, v12.8b      \n"
+                    "smull  v13.8h, v5.8b, v9.8b       \n"
+                    "smull  v14.8h, v5.8b, v10.8b      \n"
+                    "smull  v15.8h, v5.8b, v11.8b      \n"
+                    "smull  v16.8h, v5.8b, v12.8b      \n"
 
                     "dup    v9.8b, %16.b[5]            \n"
                     "dup    v10.8b, %17.b[5]           \n"
@@ -968,6 +1102,11 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     "smlal  v14.8h, v8.8b, v10.8b      \n"
                     "smlal  v15.8h, v8.8b, v11.8b      \n"
                     "smlal  v16.8h, v8.8b, v12.8b      \n"
+
+                    "saddw  v17.4s, v17.4s, v13.4h     \n"
+                    "saddw  v19.4s, v19.4s, v14.4h     \n"
+                    "saddw  v21.4s, v21.4s, v15.4h     \n"
+                    "saddw  v23.4s, v23.4s, v16.4h     \n"                    
                     // r2
                     "prfm   pldl1keep, [%7, #128]      \n"
                     "ld2    {v4.8b, v5.8b}, [%7], #16  \n"
@@ -979,10 +1118,10 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     "dup    v11.8b, %18.b[6]           \n"
                     "dup    v12.8b, %19.b[6]           \n"
 
-                    "smlal  v13.8h, v4.8b, v9.8b       \n"
-                    "smlal  v14.8h, v4.8b, v10.8b      \n"
-                    "smlal  v15.8h, v4.8b, v11.8b      \n"
-                    "smlal  v16.8h, v4.8b, v12.8b      \n"
+                    "smull  v13.8h, v4.8b, v9.8b       \n"
+                    "smull  v14.8h, v4.8b, v10.8b      \n"
+                    "smull  v15.8h, v4.8b, v11.8b      \n"
+                    "smull  v16.8h, v4.8b, v12.8b      \n"
 
                     "dup    v9.8b, %16.b[7]            \n"
                     "dup    v10.8b, %17.b[7]           \n"
@@ -994,24 +1133,20 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     "smlal  v15.8h, v5.8b, v11.8b      \n"
                     "smlal  v16.8h, v5.8b, v12.8b      \n"
 
+                    "saddw  v17.4s, v17.4s, v13.4h     \n"
+                    "saddw  v19.4s, v19.4s, v14.4h     \n"
+                    "saddw  v21.4s, v21.4s, v15.4h     \n"
+                    "saddw  v23.4s, v23.4s, v16.4h     \n"
+
                     "dup    v9.8b, %16.b[8]            \n"
                     "dup    v10.8b, %17.b[8]           \n"
                     "dup    v11.8b, %18.b[8]           \n"
                     "dup    v12.8b, %19.b[8]           \n"
 
-                    "smlal  v13.8h, v8.8b, v9.8b       \n"
-                    "smlal  v14.8h, v8.8b, v10.8b      \n"
-                    "smlal  v15.8h, v8.8b, v11.8b      \n"
-                    "smlal  v16.8h, v8.8b, v12.8b      \n"
-                    // sum0 - sum3
-                    "prfm   pldl1keep, [%1, #128]      \n"
-                    "prfm   pldl1keep, [%2, #128]      \n"
-                    "prfm   pldl1keep, [%3, #128]      \n"
-                    "prfm   pldl1keep, [%4, #128]      \n"
-                    "ld1    {v17.4s}, [%1]             \n"
-                    "ld1    {v19.4s}, [%2]             \n"
-                    "ld1    {v21.4s}, [%3]             \n"
-                    "ld1    {v23.4s}, [%4]             \n"
+                    "smull  v13.8h, v8.8b, v9.8b       \n"
+                    "smull  v14.8h, v8.8b, v10.8b      \n"
+                    "smull  v15.8h, v8.8b, v11.8b      \n"
+                    "smull  v16.8h, v8.8b, v12.8b      \n"
 
                     "saddw  v17.4s, v17.4s, v13.4h     \n"
                     "saddw  v19.4s, v19.4s, v14.4h     \n"
@@ -1168,31 +1303,40 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     int8x8_t _r01 = _r0.val[1];
                     int8x8_t _r02 = vext_s8(_r00, _r0n.val[0], 1);
 
+                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
+                    int32x4_t sum0n_s32 = vld1q_s32(outptr0+4);                    
+
                     int16x8_t _sum = vmull_s8(_r00, _k0);
                     _sum = vmlal_s8(_sum, _r01, _k1);
-                    _sum = vmlal_s8(_sum, _r02, _k2);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum));              
 
                     int8x8x2_t _r1 = vld2_s8(r1);
                     int8x8x2_t _r1n = vld2_s8(r1+16);
                     int8x8_t _r10 = _r1.val[0];
                     int8x8_t _r11 = _r1.val[1];
                     int8x8_t _r12 = vext_s8(_r10, _r1n.val[0], 1);
+                    _sum = vmull_s8(_r02, _k2);
                     _sum = vmlal_s8(_sum, _r10, _k3);
-                    _sum = vmlal_s8(_sum, _r11, _k4);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum));
+
+                    _sum = vmull_s8(_r11, _k4);
                     _sum = vmlal_s8(_sum, _r12, _k5);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum));
 
                     int8x8x2_t _r2 = vld2_s8(r2);
                     int8x8x2_t _r2n = vld2_s8(r2+16);
                     int8x8_t _r20 = _r2.val[0];
                     int8x8_t _r21 = _r2.val[1];
                     int8x8_t _r22 = vext_s8(_r20, _r2n.val[0], 1);
-                    _sum = vmlal_s8(_sum, _r20, _k6);
+                    _sum = vmull_s8(_r20, _k6);
                     _sum = vmlal_s8(_sum, _r21, _k7);
-                    _sum = vmlal_s8(_sum, _r22, _k8);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum));
+                    sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum));
 
-                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
-                    int32x4_t sum0n_s32 = vld1q_s32(outptr0+4);
-
+                    _sum = vmull_s8(_r22, _k8);
                     sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum));
                     sum0n_s32 = vaddw_s16(sum0n_s32, vget_high_s16(_sum));
 
@@ -1214,31 +1358,37 @@ static void conv3x3s2_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat
                     int8x8_t _r00 = _r0.val[0];
                     int8x8_t _r01 = _r0.val[1];
                     int8x8_t _r02 = vext_s8(_r00, _r0n.val[0], 1);
+                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
 
                     int16x8_t _sum = vmull_s8(_r00, _k0);
                     _sum = vmlal_s8(_sum, _r01, _k1);
-                    _sum = vmlal_s8(_sum, _r02, _k2);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum));
 
                     int8x8x2_t _r1 = vld2_s8(r1);
                     int8x8x2_t _r1n = vld2_s8(r1+16);
                     int8x8_t _r10 = _r1.val[0];
                     int8x8_t _r11 = _r1.val[1];
                     int8x8_t _r12 = vext_s8(_r10, _r1n.val[0], 1);
+                    _sum = vmull_s8(_r02, _k2);
                     _sum = vmlal_s8(_sum, _r10, _k3);
-                    _sum = vmlal_s8(_sum, _r11, _k4);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum));
+
+                    _sum = vmull_s8(_r11, _k4);
                     _sum = vmlal_s8(_sum, _r12, _k5);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum));
 
                     int8x8x2_t _r2 = vld2_s8(r2);
                     int8x8x2_t _r2n = vld2_s8(r2+16);
                     int8x8_t _r20 = _r2.val[0];
                     int8x8_t _r21 = _r2.val[1];
                     int8x8_t _r22 = vext_s8(_r20, _r2n.val[0], 1);
-                    _sum = vmlal_s8(_sum, _r20, _k6);
+                    _sum = vmull_s8(_r20, _k6);
                     _sum = vmlal_s8(_sum, _r21, _k7);
-                    _sum = vmlal_s8(_sum, _r22, _k8);
-
-                    int32x4_t sum0_s32 = vld1q_s32(outptr0);
                     sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum));
+
+                    _sum = vmull_s8(_r22, _k8);
+                    sum0_s32 = vaddw_s16(sum0_s32, vget_low_s16(_sum));
+                    
                     vst1q_s32(outptr0, sum0_s32);
 
                     r0 += 8;
