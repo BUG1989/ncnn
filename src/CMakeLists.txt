@@ -19,6 +19,7 @@ set(ncnn_SRCS
     opencv.cpp
     paramdict.cpp
     benchmark.cpp
+    help.cpp
 )
 
 macro(ncnn_add_layer class)
@@ -172,6 +173,7 @@ install(FILES
     opencv.h
     paramdict.h
     benchmark.h
+    help.h
     ${CMAKE_CURRENT_BINARY_DIR}/layer_type_enum.h
     ${CMAKE_CURRENT_BINARY_DIR}/platform.h
     DESTINATION include

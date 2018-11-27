@@ -325,12 +325,31 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
         conv_int8(bottom_blob_bordered, top_blob, weight_data, opt);
 
         // dequantize, reverse scale inplace
-        {
-            ncnn::Option opt_g = opt;
-            opt_g.blob_allocator = top_blob.allocator;
+        // {
+        //     ncnn::Option opt_g = opt;
+        //     opt_g.blob_allocator = top_blob.allocator;
 
-            dequantize->forward_inplace(top_blob, opt_g);
-        }
+        //     dequantize->forward_inplace(top_blob, opt_g);
+        // }
+        #pragma omp parallel for num_threads(opt.num_threads)
+        for (int p=0; p<num_output; p++)
+        {
+            {
+                ncnn::Option opt_g = opt;
+                opt_g.num_threads = 1;
+                opt_g.blob_allocator = top_blob.allocator;
+
+                Mat top_blob_g = top_blob.channel_range(p, 1);
+                dequantize_ops[p]->forward_inplace(top_blob_g, opt_g);
+            } 
+        }   
+
+#if DEBUG_FEATURE
+        extract_feature_in_f32(0, this->name.c_str(), bottom_blob, top_blob);  
+        extract_feature_in_s8(0, this->name.c_str(), bottom_blob_bordered);
+        extract_kernel_s8(0, this->name.c_str(), weight_data, bias_data, bottom_blob.c, num_output, kernel_size);
+        extract_feature_out_f32(0, this->name.c_str(), bottom_blob, top_blob);          
+#endif                  
 
         return 0;
     }

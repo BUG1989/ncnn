@@ -26,13 +26,16 @@ InnerProduct::InnerProduct()
     support_inplace = false;
 
     quantize = 0;
-    dequantize = 0;
 }
 
 InnerProduct::~InnerProduct()
 {
     delete quantize;
-    delete dequantize;
+
+    for (int i=0; i<(int)dequantize_ops.size(); i++)
+        delete dequantize_ops[i];
+
+    dequantize_ops.clear();
 }
 
 int InnerProduct::load_param(const ParamDict& pd)
@@ -65,7 +68,7 @@ int InnerProduct::load_model(const ModelBin& mb)
 
     if (int8_scale_term)
     {
-        weight_data_int8_scale = mb.load(1, 1)[0];
+        weight_data_int8_scales = mb.load(num_output, 1);
         bottom_blob_int8_scale = mb.load(1, 1)[0];
     }
 
@@ -81,25 +84,55 @@ int InnerProduct::load_model(const ModelBin& mb)
     if (use_int8_inference)
     {
         quantize = ncnn::create_layer(ncnn::LayerType::Quantize);
-        dequantize = ncnn::create_layer(ncnn::LayerType::Dequantize);
+        {
+            ncnn::ParamDict pd;
+            pd.set(0, bottom_blob_int8_scale);// scale
+
+            quantize->load_param(pd);
+        }
+
+        dequantize_ops.resize(num_output);
+        for (int g=0; g<num_output; g++)
+        {
+            dequantize_ops[g] = ncnn::create_layer(ncnn::LayerType::Dequantize);
+
+            float top_rescale = 1.f;
+
+            if (weight_data_int8_scales[g] == 0)
+                top_rescale = 0;
+            else
+                top_rescale = 1.f / (bottom_blob_int8_scale * weight_data_int8_scales[g]);
+
+            ncnn::ParamDict pd;
+            pd.set(0, top_rescale);// scale
+            pd.set(1, bias_term);// bias_term
+            pd.set(2, 1);// bias_data_size
+
+            dequantize_ops[g]->load_param(pd);
+
+            ncnn::Mat weights[1];
+            weights[0] = bias_data.range(g, 1);
+
+            dequantize_ops[g]->load_model(ModelBinFromMatArray(weights));
+        }        
     }
 
-    if (weight_data_is_float32 && use_int8_inference)
-    {
-        // quantize weight to int8
-        ncnn::ParamDict pd;
-        pd.set(0, weight_data_int8_scale);// scale
+    // if (weight_data_is_float32 && use_int8_inference)
+    // {
+    //     // quantize weight to int8
+    //     ncnn::ParamDict pd;
+    //     pd.set(0, weight_data_int8_scale);// scale
 
-        quantize->load_param(pd);
+    //     quantize->load_param(pd);
 
-        Mat int8_weight_data;
-        quantize->forward(weight_data, int8_weight_data);
+    //     Mat int8_weight_data;
+    //     quantize->forward(weight_data, int8_weight_data);
 
-        if (int8_weight_data.empty())
-            return -100;
+    //     if (int8_weight_data.empty())
+    //         return -100;
 
-        weight_data = int8_weight_data;
-    }
+    //     weight_data = int8_weight_data;
+    // }
 
     return 0;
 }
@@ -125,12 +158,10 @@ int InnerProduct::forward(const Mat& bottom_blob, Mat& top_blob, const Option& o
 
         // quantize, scale and round to nearest
         {
-            ncnn::ParamDict pd;
-            pd.set(0, bottom_blob_int8_scale);// scale
+            ncnn::Option opt_g = opt;
+            opt_g.blob_allocator = bottom_blob_int8.allocator;
 
-            quantize->load_param(pd);
-
-            quantize->forward(bottom_blob, bottom_blob_int8, opt);
+            quantize->forward(bottom_blob, bottom_blob_int8, opt_g);
         }
 
         // num_output
@@ -155,24 +186,28 @@ int InnerProduct::forward(const Mat& bottom_blob, Mat& top_blob, const Option& o
             out[p] = sum;
         }
 
-        // dequantize, reverse scale inplace
+        #pragma omp parallel for num_threads(opt.num_threads)
+        for (int p=0; p<num_output; p++)
         {
-            float top_rescale = 1.f / (bottom_blob_int8_scale * weight_data_int8_scale);
+            int* out_s32 = top_blob;
+            float* out_f32 = top_blob;
 
-            ncnn::ParamDict pd;
-            pd.set(0, top_rescale);// scale
-            pd.set(1, bias_term);// bias_term
-            pd.set(2, num_output);// bias_data_size
+            float top_rescale = 1.f;
 
-            dequantize->load_param(pd);
+            if (weight_data_int8_scales[p] == 0)
+                top_rescale = 0;
+            else
+                top_rescale = 1.f / (bottom_blob_int8_scale * weight_data_int8_scales[p]);
 
-            ncnn::Mat weights[1];
-            weights[0] = bias_data;
-
-            dequantize->load_model(ModelBinFromMatArray(weights));
-
-            dequantize->forward_inplace(top_blob, opt);
-        }
+            if (bias_term)
+            {
+                out_f32[p] = out_s32[p] * top_rescale + bias_data[p];
+            }
+            else
+            {
+                out_f32[p] = out_s32[p] * top_rescale;
+            }
+        }  
 
         return 0;
     }
