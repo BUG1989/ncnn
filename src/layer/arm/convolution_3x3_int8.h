@@ -2505,6 +2505,16 @@ static void conv3x3s1_winograd43_dequant_int8_neon(const Mat& bottom_blob, Mat& 
 #if __aarch64__
                     asm volatile(
                         // inch loop
+                        // "prfm    pldl1keep, [%8, #128]    \n"
+                        // "prfm    pldl1keep, [%9, #128]    \n"
+                        "ld1     {v8.4h}, [%8], #8            \n" // _r0 = vld1_s16(r0);
+
+                        "prfm   pldl1keep, [%9, #384]     \n"
+                        "ld1     {v9.4h, v10.4h, v11.4h, v12.4h}, [%9], #32    \n" // _k01 = vld1q_s16(kptr);
+
+                        "prfm   pldl1keep, [%9, #384]     \n"
+                        "ld1     {v13.4h, v14.4h, v15.4h, v16.4h}, [%9], #32    \n" // _k01 = vld1q_s16(kptr);   
+
                         "eor    v0.16b, v0.16b, v0.16b    \n"
                         "eor    v1.16b, v1.16b, v1.16b    \n"
                         "eor    v2.16b, v2.16b, v2.16b    \n"
@@ -2516,19 +2526,25 @@ static void conv3x3s1_winograd43_dequant_int8_neon(const Mat& bottom_blob, Mat& 
                         "mov    w4, %w20                  \n"
                         
                         "0:                               \n" // for (int q=0; q<inch; q++)
-                        "prfm    pldl1keep, [%9, #128]    \n" // _r0 = vld1_s16(r0);
-                        "ld1     {v8.4h}, [%8]            \n" 
-                        "ld1     {v9.4h, v10.4h}, [%9]    \n" // _k01 = vld1q_s16(kptr);
-                        "add     %9, %9, #16              \n"
-                        "ld1     {v11.4h, v12.4h}, [%9]   \n" // _k23 = vld1q_s16(kptr+8);
-                        "add     %9, %9, #16              \n"
-                        "ld1     {v13.4h, v14.4h}, [%9]   \n" // _k45 = vld1q_s16(kptr+16);
-                        "add     %9, %9, #16              \n"
-                        "ld1     {v15.4h, v16.4h}, [%9]   \n" // _k67 = vld1q_s16(kptr+24);
-                        "add     %8, %8, #8               \n"
-                        "add     %9, %9, #16              \n"
+                        // "add     %9, %9, #16              \n"
+                        // "ld1     {v11.4h, v12.4h}, [%9]   \n" // _k23 = vld1q_s16(kptr+8);
+                        // "add     %9, %9, #16              \n"
+                        // "ld1     {v13.4h, v14.4h}, [%9]   \n" // _k45 = vld1q_s16(kptr+16);
+                        // "add     %9, %9, #16              \n"
+                        // "ld1     {v15.4h, v16.4h}, [%9]   \n" // _k67 = vld1q_s16(kptr+24);
+                        // "add     %8, %8, #8               \n"
+                        // "add     %9, %9, #16              \n"
 
-                        "subs    w4, w4, #1               \n"
+                        "subs    w4, w4, #2               \n"
+
+                        // "prfm    pldl1keep, [%8, #128]    \n"
+                        // "prfm    pldl1keep, [%9, #128]    \n"           
+
+                        "ld1     {v17.4h}, [%8], #8            \n" // _r0 = vld1_s16(r0);
+                        "prfm   pldl1keep, [%9, #384]     \n"
+                        "ld1     {v18.4h, v19.4h, v20.4h, v21.4h}, [%9], #32    \n" // _k01 = vld1q_s16(kptr);
+                        "prfm   pldl1keep, [%9, #384]     \n"
+                        "ld1     {v22.4h, v23.4h, v24.4h, v25.4h}, [%9], #32    \n" // _k01 = vld1q_s16(kptr);                                        
 
                         "smlal   v0.4s, v8.4h, v9.4h      \n" // sum0 += (a00-a03) * (k00-k03)
                         "smlal   v1.4s, v8.4h, v10.4h     \n" // sum1 += (a00-a03) * (k10-k13)
@@ -2538,6 +2554,21 @@ static void conv3x3s1_winograd43_dequant_int8_neon(const Mat& bottom_blob, Mat& 
                         "smlal   v5.4s, v8.4h, v14.4h     \n" // sum5 += (a00-a03) * (k50-k53)
                         "smlal   v6.4s, v8.4h, v15.4h     \n" // sum6 += (a00-a03) * (k60-k63)
                         "smlal   v7.4s, v8.4h, v16.4h     \n" // sum7 += (a00-a03) * (k70-k73)
+
+                        "ld1     {v8.4h}, [%8], #8            \n" // _r0 = vld1_s16(r0);
+                        "prfm   pldl1keep, [%9, #384]     \n"
+                        "ld1     {v9.4h, v10.4h, v11.4h, v12.4h}, [%9], #32    \n" // _k01 = vld1q_s16(kptr);
+                        "prfm   pldl1keep, [%9, #384]     \n"
+                        "ld1     {v13.4h, v14.4h, v15.4h, v16.4h}, [%9], #32    \n" // _k01 = vld1q_s16(kptr);   
+
+                        "smlal   v0.4s, v17.4h, v18.4h      \n" // sum0 += (a00-a03) * (k00-k03)
+                        "smlal   v1.4s, v17.4h, v19.4h     \n" // sum1 += (a00-a03) * (k10-k13)
+                        "smlal   v2.4s, v17.4h, v20.4h     \n" // sum2 += (a00-a03) * (k20-k23)
+                        "smlal   v3.4s, v17.4h, v21.4h     \n" // sum3 += (a00-a03) * (k30-k33)
+                        "smlal   v4.4s, v17.4h, v22.4h     \n" // sum4 += (a00-a03) * (k40-k43)
+                        "smlal   v5.4s, v17.4h, v23.4h     \n" // sum5 += (a00-a03) * (k50-k53)
+                        "smlal   v6.4s, v17.4h, v24.4h     \n" // sum6 += (a00-a03) * (k60-k63)
+                        "smlal   v7.4s, v17.4h, v25.4h     \n" // sum7 += (a00-a03) * (k70-k73)                        
                         
                         "bne     0b                       \n" // end for
 
@@ -2571,7 +2602,7 @@ static void conv3x3s1_winograd43_dequant_int8_neon(const Mat& bottom_blob, Mat& 
                           "8"(r0),
                           "9"(kptr),
                           "r"(inch)         // %20
-                        : "cc", "memory", "x4", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16"
+                        : "cc", "memory", "x4", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24", "v25"
                     );
 #else
                     asm volatile(
@@ -4382,4 +4413,26 @@ static void conv3x3s2_int8_neon(const Mat &bottom_blob, Mat &top_blob, const Mat
     int stride_h = 2;
 
     conv_im2col_sgemm_int8_neon(bottom_blob, top_blob, _kernel, kernel_w, kernel_h, stride_w, stride_h, opt);
+}
+
+static void conv3x3s1_int8_dequant_neon(const Mat &bottom_blob, Mat &top_blob, const Mat &_kernel, const Mat &_bias, std::vector<float> scales_dequant, const Option& opt)
+{
+    int kernel_w = 3;
+    int kernel_h = 3;
+
+    int stride_w = 1;
+    int stride_h = 1;
+
+    conv_im2col_sgemm_int8_dequant_neon(bottom_blob, top_blob, _kernel, kernel_w, kernel_h, stride_w, stride_h, _bias, scales_dequant, opt);
+}
+
+static void conv3x3s2_int8_dequant_neon(const Mat &bottom_blob, Mat &top_blob, const Mat &_kernel, const Mat &_bias, std::vector<float> scales_dequant, const Option& opt)
+{
+    int kernel_w = 3;
+    int kernel_h = 3;
+
+    int stride_w = 2;
+    int stride_h = 2;
+
+    conv_im2col_sgemm_int8_dequant_neon(bottom_blob, top_blob, _kernel, kernel_w, kernel_h, stride_w, stride_h, _bias, scales_dequant, opt);
 }

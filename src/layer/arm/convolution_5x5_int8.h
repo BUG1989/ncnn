@@ -33,3 +33,25 @@ static void conv5x5s2_int8_neon(const Mat &bottom_blob, Mat &top_blob, const Mat
 
     conv_im2col_sgemm_int8_neon(bottom_blob, top_blob, _kernel, kernel_w, kernel_h, stride_w, stride_h, opt);
 }
+
+static void conv5x5s1_int8_dequant_neon(const Mat &bottom_blob, Mat &top_blob, const Mat &_kernel, const Mat &_bias, std::vector<float> scales_dequant, const Option& opt)
+{
+    int kernel_w = 5;
+    int kernel_h = 5;
+
+    int stride_w = 1;
+    int stride_h = 1;
+
+    conv_im2col_sgemm_int8_dequant_neon(bottom_blob, top_blob, _kernel, kernel_w, kernel_h, stride_w, stride_h, _bias, scales_dequant, opt);
+}
+
+static void conv5x5s2_int8_dequant_neon(const Mat &bottom_blob, Mat &top_blob, const Mat &_kernel, const Mat &_bias, std::vector<float> scales_dequant, const Option& opt)
+{
+    int kernel_w = 5;
+    int kernel_h = 5;
+
+    int stride_w = 2;
+    int stride_h = 2;
+
+    conv_im2col_sgemm_int8_dequant_neon(bottom_blob, top_blob, _kernel, kernel_w, kernel_h, stride_w, stride_h, _bias, scales_dequant, opt);
+}
