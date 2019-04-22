@@ -835,6 +835,8 @@ static void conv_im2col_sgemm_int8_dequant_neon(const Mat &bottom_blob, Mat &top
     const signed char *kernel = _kernel;
     const float* bias = _bias;
 
+    // double start = ncnn::get_current_time();
+
     // im2row
     Mat bottom_im2row(kernel_h*kernel_w*inch, outw*outh, 1UL, opt.workspace_allocator);
     {
@@ -863,6 +865,10 @@ static void conv_im2col_sgemm_int8_dequant_neon(const Mat &bottom_blob, Mat &top
             }
         }
     }    
+
+    // double end = ncnn::get_current_time();
+    // printf("im2col : %8.3f ms\n", end - start);
+    // start = ncnn::get_current_time();    
 
     // int kernel_size = kernel_w * kernel_h;
 
@@ -1589,6 +1595,9 @@ static void conv_im2col_sgemm_int8_dequant_neon(const Mat &bottom_blob, Mat &top
             }
         }
     } 
+
+    // end = ncnn::get_current_time();
+    // printf("sgemm  : %8.3f ms\n", end - start);    
 }
 
 #else

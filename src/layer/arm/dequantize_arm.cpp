@@ -92,12 +92,14 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
         int channels = bottom_top_blob.c;
         int size = w * h;
 
+        Mat bottom_top_blob_tm = bottom_top_blob.clone(opt.workspace_allocator);
+
         if (bias_term)
         {
             #pragma omp parallel for num_threads(opt.num_threads)
             for (int q=0; q<channels; q++)
             {
-                int* intptr = bottom_top_blob.channel(q);
+                short* intptr = bottom_top_blob_tm.channel(q);
                 float* ptr = bottom_top_blob.channel(q);
 
                 float bias = bias_data[q];
@@ -105,6 +107,7 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
 #if __ARM_NEON
                 int nn = size >> 3;
                 int remain = size & 7;
+                float scale_tm = scale * 2.0;
 #else
                 int remain = size;
 #endif // __ARM_NEON
@@ -118,10 +121,13 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
                     "dup    v3.4s, %w7                   \n" // bias
                     "0:                                  \n"
                     "prfm   pldl1keep, [%1, #128]        \n"
-                    "ld1    {v0.4s, v1.4s}, [%1], #32    \n" // data
+                    "ld1    {v0.8h}, [%1], #16           \n" // data
+                    // top_blob s16 -> s32
+                    "sshll    v7.4s, v0.4h, #0           \n"
+                    "sshll2   v8.4s, v0.8h, #0           \n"
                     // top_s32 -> top_f32
-                    "scvtf  v5.4s, v0.4s                 \n"
-                    "scvtf  v6.4s, v1.4s                 \n"
+                    "scvtf  v5.4s, v7.4s                 \n"
+                    "scvtf  v6.4s, v8.4s                 \n"
                     // top_f32 = top_f32 * scale_out
                     "fmul   v5.4s, v5.4s, v2.4s          \n"
                     "fmul   v6.4s, v6.4s, v2.4s          \n"
@@ -138,9 +144,9 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
                     : "0"(nn),
                       "1"(intptr),
                       "2"(ptr),
-                      "r"(scale),       // %6
+                      "r"(scale_tm),       // %6
                       "r"(bias)         // %7
-                    : "cc", "memory", "v0", "v1", "v2", "v3", "v4", "v5", "v6"
+                    : "cc", "memory", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"
                 );
                 }
 #else
@@ -185,7 +191,7 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
 #endif // __ARM_NEON
                 for (; remain>0; remain--)
                 {
-                    *ptr = *intptr * scale + bias;
+                    *ptr = (float)(*intptr) * scale * 2.0 + bias;
 
                     intptr++;
                     ptr++;
@@ -197,12 +203,13 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
             #pragma omp parallel for num_threads(opt.num_threads)
             for (int q=0; q<channels; q++)
             {
-                int* intptr = bottom_top_blob.channel(q);
+                short* intptr = bottom_top_blob_tm.channel(q);
                 float* ptr = bottom_top_blob.channel(q);
 
 #if __ARM_NEON
                 int nn = size >> 3;
                 int remain = size & 7;
+                float scale_tm = scale * 2.0;
 #else
                 int remain = size;
 #endif // __ARM_NEON
@@ -215,10 +222,13 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
                     "dup    v2.4s, %w6                   \n" // scale
                     "0:                                  \n"
                     "prfm   pldl1keep, [%1, #128]      \n"
-                    "ld1    {v0.4s, v1.4s}, [%1], #32    \n" // data
+                    "ld1    {v0.8h}, [%1], #16           \n" // data
+                    // top_blob s16 -> s32
+                    "sshll    v7.4s, v0.4h, #0           \n"
+                    "sshll2   v8.4s, v0.8h, #0           \n"
                     // top_s32 -> top_f32
-                    "scvtf  v5.4s, v0.4s                 \n"
-                    "scvtf  v6.4s, v1.4s                 \n"
+                    "scvtf  v5.4s, v7.4s                 \n"
+                    "scvtf  v6.4s, v8.4s                 \n"
                     // top_f32 = top_f32 * scale_out
                     "fmul   v5.4s, v5.4s, v2.4s          \n"
                     "fmul   v6.4s, v6.4s, v2.4s          \n"
@@ -232,7 +242,7 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
                     : "0"(nn),
                       "1"(intptr),
                       "2"(ptr),
-                      "r"(scale)        // %6
+                      "r"(scale_tm)        // %6
                     : "cc", "memory", "v0", "v1", "v2", "v3", "v4", "v5", "v6"
                 );
                 }
@@ -273,7 +283,7 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
 #endif // __ARM_NEON
                 for (; remain>0; remain--)
                 {
-                    *ptr = *intptr * scale;
+                    *ptr = (float)(*intptr) * scale * 2.0;
 
                     intptr++;
                     ptr++;
