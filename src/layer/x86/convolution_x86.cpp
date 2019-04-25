@@ -44,7 +44,7 @@ int Convolution_x86::load_param(const ParamDict& pd)
         int num_input = weight_data_size / 9 / num_output;
         // winograd is slow on small channel count
         if(num_input >= 16 && num_output >= 16)
-            use_winograd3x3 = false;
+            use_winograd3x3 = true;
     }           
 
     return 0;
@@ -61,8 +61,8 @@ int Convolution_x86::load_model(const ModelBin& mb)
         int num_input = weight_data_size / 9 / num_output;
 
         if (use_int8_inference)
-            conv3x3s1_winograd23_transform_kernel_int8_sse(weight_data, weight_3x3_winograd23_data, num_input, num_output);
-            // conv3x3s1_winograd43_transform_kernel_int8_sse(weight_data, weight_3x3_winograd23_data, num_input, num_output);
+            // conv3x3s1_winograd23_transform_kernel_int8_sse(weight_data, weight_3x3_winograd23_data, num_input, num_output);
+            conv3x3s1_winograd43_transform_kernel_int8_sse(weight_data, weight_3x3_winograd23_data, num_input, num_output);
         else
             // conv3x3s1_winograd23_transform_kernel_sse(weight_data, weight_3x3_winograd23_data, num_input, num_output);
             conv3x3s1_winograd43_transform_kernel_sse(weight_data, weight_3x3_winograd23_data, num_input, num_output);
@@ -470,8 +470,8 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
 
             if (use_winograd3x3)
             {
-                conv3x3s1_winograd23_int8_sse(bottom_blob_bordered, top_blob, weight_3x3_winograd23_data, opt);
-                // conv3x3s1_winograd43_int8_sse(bottom_blob_bordered, top_blob, weight_3x3_winograd23_data, opt);
+                // conv3x3s1_winograd23_int8_sse(bottom_blob_bordered, top_blob, weight_3x3_winograd23_data, opt);
+                conv3x3s1_winograd43_int8_sse(bottom_blob_bordered, top_blob, weight_3x3_winograd23_data, opt);
 
                 // dequantize, reverse scale inplace
                 #pragma omp parallel for num_threads(opt.num_threads)
@@ -488,6 +488,10 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
             else
                 conv_int8_dequant(bottom_blob_bordered, top_blob, weight_data, bias_data, dequantize_scales, opt);     
         }
+
+#if DEBUG_FEATURE
+    extract_feature_in_s8(0, this->name.c_str(), bottom_blob_bordered);
+#endif        
     
         return 0;
     }
@@ -505,6 +509,12 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     else
         conv(bottom_blob_bordered, top_blob, weight_data, bias_data, opt);
        
+#if DEBUG_FEATURE
+    extract_feature_in_f32(0, this->name.c_str(), bottom_blob);
+    extract_kernel_f32(0, this->name.c_str(), weight_data, bias_data, bottom_blob.c, num_output, kernel_size);
+    extract_feature_out_f32(0, this->name.c_str(), top_blob);
+#endif
+
     return 0;
 }
 

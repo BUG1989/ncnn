@@ -53,6 +53,9 @@ if(NCNN_VULKAN)
     include_directories(${Vulkan_INCLUDE_DIR})
 endif()
 
+#add_definitions(-DDEBUG_FEATURE)
+#add_definitions(-DDEBUG_TIME)
+
 if(WIN32)
     add_definitions(-D_SCL_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
     add_definitions(-DNOMINMAX)

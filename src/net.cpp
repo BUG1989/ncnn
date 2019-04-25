@@ -863,7 +863,7 @@ int Net::load_model(const unsigned char* _mem)
 void Net::fuse_network()
 {
     // set the int8 op fusion:requantize
-#if NCNN_STRING && NCNN_REQUANT    
+#if 1 //NCNN_STRING && NCNN_REQUANT    
     // fprintf(stderr, "Test op fusion to int8 implement:\n");
     for (size_t i=0; i<layers.size(); i++)
     {
@@ -886,7 +886,7 @@ void Net::fuse_network()
 
                     if (layer_next_2->type == "Convolution" || layer_next_2->type == "ConvolutionDepthWise")
                     {
-                        // fprintf(stderr, "%s, %s, %s\n", layer->name.c_str(), layer_next->name.c_str(), layer_next_2->name.c_str());
+                        fprintf(stderr, "%s, %s, %s\n", layer->name.c_str(), layer_next->name.c_str(), layer_next_2->name.c_str());
                         if (layer->type == "Convolution" && layer_next_2->type == "Convolution")
                         {
                             ((Convolution*)layer)->use_int8_requantize = true;
@@ -927,13 +927,13 @@ void Net::fuse_network()
 
                         if (all_conv == true && layer_next_2->tops.size() >= size_t(2))
                         {
-                            // fprintf(stderr, "%s, %s, %s, ", layer->name.c_str(), layer_next->name.c_str(), layer_next_2->name.c_str());
+                            fprintf(stderr, "%s, %s, %s, ", layer->name.c_str(), layer_next->name.c_str(), layer_next_2->name.c_str());
                             for (size_t i=0; i<layer_next_2->tops.size(); i++)
                             {
                                 int layer_next_3_index = blobs[layer_next_2->tops[i]].consumers[0];
                                 Layer* layer_next_3 = layers[layer_next_3_index];
 
-                                // fprintf(stderr, "%s, ", layer_next_3->name.c_str());
+                                fprintf(stderr, "%s, ", layer_next_3->name.c_str());
                                 if (layer_next_3->type == "Convolution")
                                 {
                                     ((Convolution*)layer)->top_blob_int8_scale = ((Convolution*)layer_next_3)->bottom_blob_int8_scale; 
@@ -942,7 +942,7 @@ void Net::fuse_network()
 
                             ((Convolution*)layer)->use_int8_requantize = true;
                             ((Convolution*)layer)->create_requantize_op();    
-                            // fprintf(stderr, "\n");
+                            fprintf(stderr, "\n");
                         }
                     }
                     else

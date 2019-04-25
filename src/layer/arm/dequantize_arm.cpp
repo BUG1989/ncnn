@@ -94,9 +94,11 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
 
         Mat bottom_top_blob_tm = bottom_top_blob.clone(opt.workspace_allocator);
 
+        float scale_tm = scale * 2.0;
+
         if (bias_term)
         {
-            #pragma omp parallel for num_threads(opt.num_threads)
+            //#pragma omp parallel for num_threads(opt.num_threads)
             for (int q=0; q<channels; q++)
             {
                 short* intptr = bottom_top_blob_tm.channel(q);
@@ -107,7 +109,6 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
 #if __ARM_NEON
                 int nn = size >> 3;
                 int remain = size & 7;
-                float scale_tm = scale * 2.0;
 #else
                 int remain = size;
 #endif // __ARM_NEON
@@ -191,7 +192,7 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
 #endif // __ARM_NEON
                 for (; remain>0; remain--)
                 {
-                    *ptr = (float)(*intptr) * scale * 2.0 + bias;
+                    *ptr = (float)(*intptr) * scale_tm + bias;
 
                     intptr++;
                     ptr++;
@@ -221,7 +222,7 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
                 asm volatile(
                     "dup    v2.4s, %w6                   \n" // scale
                     "0:                                  \n"
-                    "prfm   pldl1keep, [%1, #128]      \n"
+                    "prfm   pldl1keep, [%1, #128]        \n"
                     "ld1    {v0.8h}, [%1], #16           \n" // data
                     // top_blob s16 -> s32
                     "sshll    v7.4s, v0.4h, #0           \n"
@@ -283,7 +284,7 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
 #endif // __ARM_NEON
                 for (; remain>0; remain--)
                 {
-                    *ptr = (float)(*intptr) * scale * 2.0;
+                    *ptr = (float)(*intptr) * scale_tm;
 
                     intptr++;
                     ptr++;
