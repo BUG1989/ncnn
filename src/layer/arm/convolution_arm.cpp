@@ -300,53 +300,54 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
 
     typedef void (*conv_int8_func)(const Mat&, Mat&, const Mat&, const Option&);
     typedef void (*conv_int8_dequant_func)(const Mat&, Mat&, const Mat&, const Mat&, std::vector<float>, const Option&);
+    typedef void (*conv_int8_requant_func)(const Mat&, Mat&, const Mat&, const Mat&, std::vector<float>, const Option&);
 
     // kernel_size x stride
-    conv_int8_func conv_int8_func_table[7][4] =
-    {
-        {
-            conv1x1s1_int8_neon,
-            conv1x1s2_int8_neon,
-            0,
-            0
-        }, // kernel_size = 1
-        {
-            0,
-            0,
-            0,
-            0
-        }, // kernel_size = 2
-        {
-            conv3x3s1_int8_neon,
-            conv3x3s2_int8_neon,
-            0,
-            0
-        }, // kernel_size = 3
-        {
-            0,
-            0,
-            0,
-            0
-        }, // kernel_size = 4
-        {
-            conv5x5s1_int8_neon,
-            conv5x5s2_int8_neon,
-            0,
-            0
-        }, // kernel_size = 5
-        {
-            0,
-            0,
-            0,
-            0
-        }, // kernel_size = 6
-        {            
-            conv7x7s1_int8_neon,           
-            conv7x7s2_int8_neon,
-            0,
-            0
-        }  // kernel_size = 7                
-    };
+    // conv_int8_func conv_int8_func_table[7][4] =
+    // {
+    //     {
+    //         conv1x1s1_int8_neon,
+    //         conv1x1s2_int8_neon,
+    //         0,
+    //         0
+    //     }, // kernel_size = 1
+    //     {
+    //         0,
+    //         0,
+    //         0,
+    //         0
+    //     }, // kernel_size = 2
+    //     {
+    //         conv3x3s1_int8_neon,
+    //         conv3x3s2_int8_neon,
+    //         0,
+    //         0
+    //     }, // kernel_size = 3
+    //     {
+    //         0,
+    //         0,
+    //         0,
+    //         0
+    //     }, // kernel_size = 4
+    //     {
+    //         conv5x5s1_int8_neon,
+    //         conv5x5s2_int8_neon,
+    //         0,
+    //         0
+    //     }, // kernel_size = 5
+    //     {
+    //         0,
+    //         0,
+    //         0,
+    //         0
+    //     }, // kernel_size = 6
+    //     {            
+    //         conv7x7s1_int8_neon,           
+    //         conv7x7s2_int8_neon,
+    //         0,
+    //         0
+    //     }  // kernel_size = 7                
+    // };
 
     conv_int8_dequant_func conv_int8_dequant_func_table[7][4] =
     {
@@ -394,14 +395,64 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
         }  // kernel_size = 7
     };    
 
+    conv_int8_requant_func conv_int8_requant_func_table[7][4] =
+    {
+        {
+            conv1x1s1_int8_requant_neon,
+            conv1x1s2_int8_requant_neon,
+            0,
+            0
+        }, // kernel_size = 1
+        {
+            0,
+            0,
+            0,
+            0
+        }, // kernel_size = 2
+        {
+            conv3x3s1_int8_requant_neon,
+            conv3x3s2_int8_requant_neon,
+            0,
+            0,
+        }, // kernel_size = 3
+        {
+            0,
+            0,
+            0,
+            0
+        }, // kernel_size = 4
+        {        
+            conv5x5s1_int8_requant_neon,
+            conv5x5s2_int8_requant_neon,    
+            0,
+            0
+        }, // kernel_size = 5
+        {
+            0,
+            0,
+            0,
+            0
+        }, // kernel_size = 6
+        {
+            conv7x7s1_int8_requant_neon,          
+            conv7x7s2_int8_requant_neon, 
+            0,
+            0
+        }  // kernel_size = 7
+    };      
+
     conv_func conv = 0;
-    conv_int8_func conv_int8 = 0;
+    // conv_int8_func conv_int8 = 0;
     conv_int8_dequant_func conv_int8_dequant = 0;
+    conv_int8_requant_func conv_int8_requant = 0;
 
     if (use_int8_inference)
     {
-        conv_int8_dequant = conv_int8_dequant_func_table[kernel_size-1][stride-1];  
-        if (!conv_int8_dequant)
+        if (use_int8_requantize)
+            conv_int8_requant = conv_int8_requant_func_table[kernel_size-1][stride-1];
+        else
+            conv_int8_dequant = conv_int8_dequant_func_table[kernel_size-1][stride-1];  
+        if ((!conv_int8_requant) && (!conv_int8_dequant))
         {
             return Convolution::forward(bottom_blob, top_blob, opt);
         }
@@ -526,7 +577,7 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
             }
             else
             {
-                conv_int8(bottom_blob_bordered, top_blob_tm, weight_sgemm_int8_data, opt);
+                conv_int8_requant(bottom_blob_bordered, top_blob, weight_data, bias_data, requantize_scales, opt);  
             }
 #if DEBUG_TIME            
             end = get_current_time();

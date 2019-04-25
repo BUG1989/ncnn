@@ -16,14 +16,6 @@
 #include <arm_neon.h>
 #endif // __ARM_NEON
 
-static inline signed char float2int8(float v)
-{
-    int int32 = round(v);
-    if (int32 > 127) return 127;
-    if (int32 < -128) return -128;
-    return (signed char)int32;
-}
-
 static void conv1x1s1_sgemm_transform_kernel_int8_neon(const Mat& _kernel, Mat& kernel_tm, int inch, int outch)
 {
     const signed char* kernel = _kernel;
@@ -1752,4 +1744,26 @@ static void conv1x1s2_int8_dequant_neon(const Mat &bottom_blob, Mat &top_blob, c
     int stride_h = 2;
 
     conv_im2col_sgemm_int8_dequant_neon(bottom_blob, top_blob, _kernel, kernel_w, kernel_h, stride_w, stride_h, _bias, scales_dequant, opt);
+}
+
+static void conv1x1s1_int8_requant_neon(const Mat &bottom_blob, Mat &top_blob, const Mat &_kernel, const Mat &_bias, std::vector<float> scales_requant, const Option& opt)
+{
+    int kernel_w = 1;
+    int kernel_h = 1;
+
+    int stride_w = 1;
+    int stride_h = 1;
+
+    conv_im2col_sgemm_int8_requant_neon(bottom_blob, top_blob, _kernel, kernel_w, kernel_h, stride_w, stride_h, _bias, scales_requant, opt);
+}
+
+static void conv1x1s2_int8_requant_neon(const Mat &bottom_blob, Mat &top_blob, const Mat &_kernel, const Mat &_bias, std::vector<float> scales_requant, const Option& opt)
+{
+    int kernel_w = 1;
+    int kernel_h = 1;
+
+    int stride_w = 2;
+    int stride_h = 2;
+
+    conv_im2col_sgemm_int8_requant_neon(bottom_blob, top_blob, _kernel, kernel_w, kernel_h, stride_w, stride_h, _bias, scales_requant, opt);
 }

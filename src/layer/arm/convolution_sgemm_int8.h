@@ -19,6 +19,14 @@ static inline short saturate2int16(int v)
     return (short)v;
 }
 
+static inline signed char float2int8(float v)
+{
+    int int32 = round(v);
+    if (int32 > 127) return 127;
+    if (int32 < -128) return -128;
+    return (signed char)int32;
+}
+
 #if 1 //__aarch64__
 #if 0
 static void conv_im2col_sgemm_transform_kernel_int8_neon(const Mat& _kernel, Mat& kernel_tm, int inch, int outch, int kernel_size)
@@ -832,7 +840,7 @@ static void conv_im2col_sgemm_int8_dequant_neon(const Mat &bottom_blob, Mat &top
     int outh = top_blob.h;
     int outch = top_blob.c;
 
-    const signed char *kernel = _kernel;
+    // const signed char *kernel = _kernel;
     const float* bias = _bias;
 
     // double start = ncnn::get_current_time();
@@ -1591,6 +1599,790 @@ static void conv_im2col_sgemm_int8_dequant_neon(const Mat &bottom_blob, Mat &top
 
                 // dequant convert int32 to fp32
                 output[0] = (float)sum * scale_dequant0 + bias0;
+                output++;
+            }
+        }
+    } 
+
+    // end = ncnn::get_current_time();
+    // printf("sgemm  : %8.3f ms\n", end - start);    
+}
+
+static void conv_im2col_sgemm_int8_requant_neon(const Mat &bottom_blob, Mat &top_blob, const Mat &_kernel, \
+            const int kernel_w, const int kernel_h, const int stride_w, const int stride_h, const Mat &_bias, std::vector<float> scale_requant, const Option& opt)
+{
+    int w = bottom_blob.w;
+    int inch = bottom_blob.c;
+
+    int outw = top_blob.w;
+    int outh = top_blob.h;
+    int outch = top_blob.c;
+
+    // const signed char *kernel = _kernel;
+    const float* bias = _bias;
+
+    // double start = ncnn::get_current_time();
+
+    // im2row
+    Mat bottom_im2row(kernel_h*kernel_w*inch, outw*outh, 1UL, opt.workspace_allocator);
+    {
+        signed char* ret = (signed char*)bottom_im2row;
+        int retID = 0;
+    
+        for (int i=0; i<outh; i++)
+        {
+            for (int j=0; j<outw; j++)
+            {
+                for (int p=0; p<inch; p++)
+                {
+                    const signed char* input = bottom_blob.channel(p);
+                    for (int u=0; u<kernel_h; u++)
+                    {
+                        for (int v=0; v<kernel_w; v++)
+                        {    
+                            int row = u + i * stride_h;
+                            int col = v + j * stride_w;
+                            int index = row * w + col;
+                            ret[retID] = input[index];
+                            retID++;
+                        }
+                    }                
+                }
+            }
+        }
+    }    
+
+    // double end = ncnn::get_current_time();
+    // printf("im2col : %8.3f ms\n", end - start);
+    // start = ncnn::get_current_time();    
+
+    // int kernel_size = kernel_w * kernel_h;
+
+    // 4x1
+    // sgemm(int M, int N, int K, float* A, float* B, float* C)
+    {
+        // int M = outch;  // outch
+        int N = outw * outh; // outsize or out stride
+        int K = kernel_w * kernel_h * inch; // ksize * inch
+
+        int nn_outch = 0;
+        int remain_outch_start = 0;
+
+        nn_outch = outch >> 2;
+        remain_outch_start = nn_outch << 2;
+        
+        for (int pp=0; pp<nn_outch; pp++)
+        {
+            int i = pp * 4;
+
+            const float bias0 = bias ? bias[i]   : 0.f;
+            const float bias1 = bias ? bias[i+1] : 0.f;
+            const float bias2 = bias ? bias[i+2] : 0.f;
+            const float bias3 = bias ? bias[i+3] : 0.f;
+
+            const float scale_requant_in0  = scale_requant[2*i];
+            const float scale_requant_out0 = scale_requant[2*i+1];
+            const float scale_requant_in1  = scale_requant[2*(i+1)];
+            const float scale_requant_out1 = scale_requant[2*(i+1)+1];
+            const float scale_requant_in2  = scale_requant[2*(i+2)];
+            const float scale_requant_out2 = scale_requant[2*(i+2)+1];
+            const float scale_requant_in3  = scale_requant[2*(i+3)];
+            const float scale_requant_out3 = scale_requant[2*(i+3)+1];
+
+            float* output0 = top_blob.channel(i);
+            float* output1 = top_blob.channel(i+1);
+            float* output2 = top_blob.channel(i+2);
+            float* output3 = top_blob.channel(i+3);
+
+            for (int j=0; j<N; j++)
+            {
+                signed char* vb = bottom_im2row.row<signed char>(j);
+                const signed char* va = _kernel.channel(i/4);
+
+                short sum0 = 0;
+                short sum1 = 0;
+                short sum2 = 0;
+                short sum3 = 0;
+
+                short sum0_s16[8] = {0};
+                short sum1_s16[8] = {0};
+                short sum2_s16[8] = {0};
+                short sum3_s16[8] = {0};
+
+                int k = 0;
+                for (; k+63<K; k=k+64)
+                {
+                    short sum0_tmp[8] = {0};
+                    short sum1_tmp[8] = {0};
+                    short sum2_tmp[8] = {0};
+                    short sum3_tmp[8] = {0};
+
+                    // roll 0
+                    sum0_tmp[0] += (short)va[0] * vb[0];
+                    sum0_tmp[1] += (short)va[1] * vb[1];
+                    sum0_tmp[2] += (short)va[2] * vb[2];
+                    sum0_tmp[3] += (short)va[3] * vb[3];
+                    sum0_tmp[4] += (short)va[4] * vb[4];
+                    sum0_tmp[5] += (short)va[5] * vb[5];
+                    sum0_tmp[6] += (short)va[6] * vb[6];
+                    sum0_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum1_tmp[0] += (short)va[0] * vb[0];
+                    sum1_tmp[1] += (short)va[1] * vb[1];
+                    sum1_tmp[2] += (short)va[2] * vb[2];
+                    sum1_tmp[3] += (short)va[3] * vb[3];
+                    sum1_tmp[4] += (short)va[4] * vb[4];
+                    sum1_tmp[5] += (short)va[5] * vb[5];
+                    sum1_tmp[6] += (short)va[6] * vb[6];
+                    sum1_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum2_tmp[0] += (short)va[0] * vb[0];
+                    sum2_tmp[1] += (short)va[1] * vb[1];
+                    sum2_tmp[2] += (short)va[2] * vb[2];
+                    sum2_tmp[3] += (short)va[3] * vb[3];
+                    sum2_tmp[4] += (short)va[4] * vb[4];
+                    sum2_tmp[5] += (short)va[5] * vb[5];
+                    sum2_tmp[6] += (short)va[6] * vb[6];
+                    sum2_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum3_tmp[0] += (short)va[0] * vb[0];
+                    sum3_tmp[1] += (short)va[1] * vb[1];
+                    sum3_tmp[2] += (short)va[2] * vb[2];
+                    sum3_tmp[3] += (short)va[3] * vb[3];
+                    sum3_tmp[4] += (short)va[4] * vb[4];
+                    sum3_tmp[5] += (short)va[5] * vb[5];
+                    sum3_tmp[6] += (short)va[6] * vb[6];
+                    sum3_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    vb += 8;
+
+                    // roll 1
+                    sum0_tmp[0] += (short)va[0] * vb[0];
+                    sum0_tmp[1] += (short)va[1] * vb[1];
+                    sum0_tmp[2] += (short)va[2] * vb[2];
+                    sum0_tmp[3] += (short)va[3] * vb[3];
+                    sum0_tmp[4] += (short)va[4] * vb[4];
+                    sum0_tmp[5] += (short)va[5] * vb[5];
+                    sum0_tmp[6] += (short)va[6] * vb[6];
+                    sum0_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum1_tmp[0] += (short)va[0] * vb[0];
+                    sum1_tmp[1] += (short)va[1] * vb[1];
+                    sum1_tmp[2] += (short)va[2] * vb[2];
+                    sum1_tmp[3] += (short)va[3] * vb[3];
+                    sum1_tmp[4] += (short)va[4] * vb[4];
+                    sum1_tmp[5] += (short)va[5] * vb[5];
+                    sum1_tmp[6] += (short)va[6] * vb[6];
+                    sum1_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum2_tmp[0] += (short)va[0] * vb[0];
+                    sum2_tmp[1] += (short)va[1] * vb[1];
+                    sum2_tmp[2] += (short)va[2] * vb[2];
+                    sum2_tmp[3] += (short)va[3] * vb[3];
+                    sum2_tmp[4] += (short)va[4] * vb[4];
+                    sum2_tmp[5] += (short)va[5] * vb[5];
+                    sum2_tmp[6] += (short)va[6] * vb[6];
+                    sum2_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum3_tmp[0] += (short)va[0] * vb[0];
+                    sum3_tmp[1] += (short)va[1] * vb[1];
+                    sum3_tmp[2] += (short)va[2] * vb[2];
+                    sum3_tmp[3] += (short)va[3] * vb[3];
+                    sum3_tmp[4] += (short)va[4] * vb[4];
+                    sum3_tmp[5] += (short)va[5] * vb[5];
+                    sum3_tmp[6] += (short)va[6] * vb[6];
+                    sum3_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    vb += 8;
+
+                    // roll 2
+                    sum0_tmp[0] += (short)va[0] * vb[0];
+                    sum0_tmp[1] += (short)va[1] * vb[1];
+                    sum0_tmp[2] += (short)va[2] * vb[2];
+                    sum0_tmp[3] += (short)va[3] * vb[3];
+                    sum0_tmp[4] += (short)va[4] * vb[4];
+                    sum0_tmp[5] += (short)va[5] * vb[5];
+                    sum0_tmp[6] += (short)va[6] * vb[6];
+                    sum0_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum1_tmp[0] += (short)va[0] * vb[0];
+                    sum1_tmp[1] += (short)va[1] * vb[1];
+                    sum1_tmp[2] += (short)va[2] * vb[2];
+                    sum1_tmp[3] += (short)va[3] * vb[3];
+                    sum1_tmp[4] += (short)va[4] * vb[4];
+                    sum1_tmp[5] += (short)va[5] * vb[5];
+                    sum1_tmp[6] += (short)va[6] * vb[6];
+                    sum1_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum2_tmp[0] += (short)va[0] * vb[0];
+                    sum2_tmp[1] += (short)va[1] * vb[1];
+                    sum2_tmp[2] += (short)va[2] * vb[2];
+                    sum2_tmp[3] += (short)va[3] * vb[3];
+                    sum2_tmp[4] += (short)va[4] * vb[4];
+                    sum2_tmp[5] += (short)va[5] * vb[5];
+                    sum2_tmp[6] += (short)va[6] * vb[6];
+                    sum2_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum3_tmp[0] += (short)va[0] * vb[0];
+                    sum3_tmp[1] += (short)va[1] * vb[1];
+                    sum3_tmp[2] += (short)va[2] * vb[2];
+                    sum3_tmp[3] += (short)va[3] * vb[3];
+                    sum3_tmp[4] += (short)va[4] * vb[4];
+                    sum3_tmp[5] += (short)va[5] * vb[5];
+                    sum3_tmp[6] += (short)va[6] * vb[6];
+                    sum3_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    vb += 8;
+
+                    // roll 3
+                    sum0_tmp[0] += (short)va[0] * vb[0];
+                    sum0_tmp[1] += (short)va[1] * vb[1];
+                    sum0_tmp[2] += (short)va[2] * vb[2];
+                    sum0_tmp[3] += (short)va[3] * vb[3];
+                    sum0_tmp[4] += (short)va[4] * vb[4];
+                    sum0_tmp[5] += (short)va[5] * vb[5];
+                    sum0_tmp[6] += (short)va[6] * vb[6];
+                    sum0_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum1_tmp[0] += (short)va[0] * vb[0];
+                    sum1_tmp[1] += (short)va[1] * vb[1];
+                    sum1_tmp[2] += (short)va[2] * vb[2];
+                    sum1_tmp[3] += (short)va[3] * vb[3];
+                    sum1_tmp[4] += (short)va[4] * vb[4];
+                    sum1_tmp[5] += (short)va[5] * vb[5];
+                    sum1_tmp[6] += (short)va[6] * vb[6];
+                    sum1_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum2_tmp[0] += (short)va[0] * vb[0];
+                    sum2_tmp[1] += (short)va[1] * vb[1];
+                    sum2_tmp[2] += (short)va[2] * vb[2];
+                    sum2_tmp[3] += (short)va[3] * vb[3];
+                    sum2_tmp[4] += (short)va[4] * vb[4];
+                    sum2_tmp[5] += (short)va[5] * vb[5];
+                    sum2_tmp[6] += (short)va[6] * vb[6];
+                    sum2_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum3_tmp[0] += (short)va[0] * vb[0];
+                    sum3_tmp[1] += (short)va[1] * vb[1];
+                    sum3_tmp[2] += (short)va[2] * vb[2];
+                    sum3_tmp[3] += (short)va[3] * vb[3];
+                    sum3_tmp[4] += (short)va[4] * vb[4];
+                    sum3_tmp[5] += (short)va[5] * vb[5];
+                    sum3_tmp[6] += (short)va[6] * vb[6];
+                    sum3_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    vb += 8;
+
+                    // roll 4
+                    sum0_tmp[0] += (short)va[0] * vb[0];
+                    sum0_tmp[1] += (short)va[1] * vb[1];
+                    sum0_tmp[2] += (short)va[2] * vb[2];
+                    sum0_tmp[3] += (short)va[3] * vb[3];
+                    sum0_tmp[4] += (short)va[4] * vb[4];
+                    sum0_tmp[5] += (short)va[5] * vb[5];
+                    sum0_tmp[6] += (short)va[6] * vb[6];
+                    sum0_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum1_tmp[0] += (short)va[0] * vb[0];
+                    sum1_tmp[1] += (short)va[1] * vb[1];
+                    sum1_tmp[2] += (short)va[2] * vb[2];
+                    sum1_tmp[3] += (short)va[3] * vb[3];
+                    sum1_tmp[4] += (short)va[4] * vb[4];
+                    sum1_tmp[5] += (short)va[5] * vb[5];
+                    sum1_tmp[6] += (short)va[6] * vb[6];
+                    sum1_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum2_tmp[0] += (short)va[0] * vb[0];
+                    sum2_tmp[1] += (short)va[1] * vb[1];
+                    sum2_tmp[2] += (short)va[2] * vb[2];
+                    sum2_tmp[3] += (short)va[3] * vb[3];
+                    sum2_tmp[4] += (short)va[4] * vb[4];
+                    sum2_tmp[5] += (short)va[5] * vb[5];
+                    sum2_tmp[6] += (short)va[6] * vb[6];
+                    sum2_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum3_tmp[0] += (short)va[0] * vb[0];
+                    sum3_tmp[1] += (short)va[1] * vb[1];
+                    sum3_tmp[2] += (short)va[2] * vb[2];
+                    sum3_tmp[3] += (short)va[3] * vb[3];
+                    sum3_tmp[4] += (short)va[4] * vb[4];
+                    sum3_tmp[5] += (short)va[5] * vb[5];
+                    sum3_tmp[6] += (short)va[6] * vb[6];
+                    sum3_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    vb += 8;
+
+                    // roll 5
+                    sum0_tmp[0] += (short)va[0] * vb[0];
+                    sum0_tmp[1] += (short)va[1] * vb[1];
+                    sum0_tmp[2] += (short)va[2] * vb[2];
+                    sum0_tmp[3] += (short)va[3] * vb[3];
+                    sum0_tmp[4] += (short)va[4] * vb[4];
+                    sum0_tmp[5] += (short)va[5] * vb[5];
+                    sum0_tmp[6] += (short)va[6] * vb[6];
+                    sum0_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum1_tmp[0] += (short)va[0] * vb[0];
+                    sum1_tmp[1] += (short)va[1] * vb[1];
+                    sum1_tmp[2] += (short)va[2] * vb[2];
+                    sum1_tmp[3] += (short)va[3] * vb[3];
+                    sum1_tmp[4] += (short)va[4] * vb[4];
+                    sum1_tmp[5] += (short)va[5] * vb[5];
+                    sum1_tmp[6] += (short)va[6] * vb[6];
+                    sum1_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum2_tmp[0] += (short)va[0] * vb[0];
+                    sum2_tmp[1] += (short)va[1] * vb[1];
+                    sum2_tmp[2] += (short)va[2] * vb[2];
+                    sum2_tmp[3] += (short)va[3] * vb[3];
+                    sum2_tmp[4] += (short)va[4] * vb[4];
+                    sum2_tmp[5] += (short)va[5] * vb[5];
+                    sum2_tmp[6] += (short)va[6] * vb[6];
+                    sum2_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum3_tmp[0] += (short)va[0] * vb[0];
+                    sum3_tmp[1] += (short)va[1] * vb[1];
+                    sum3_tmp[2] += (short)va[2] * vb[2];
+                    sum3_tmp[3] += (short)va[3] * vb[3];
+                    sum3_tmp[4] += (short)va[4] * vb[4];
+                    sum3_tmp[5] += (short)va[5] * vb[5];
+                    sum3_tmp[6] += (short)va[6] * vb[6];
+                    sum3_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    vb += 8;
+
+                    // roll 6
+                    sum0_tmp[0] += (short)va[0] * vb[0];
+                    sum0_tmp[1] += (short)va[1] * vb[1];
+                    sum0_tmp[2] += (short)va[2] * vb[2];
+                    sum0_tmp[3] += (short)va[3] * vb[3];
+                    sum0_tmp[4] += (short)va[4] * vb[4];
+                    sum0_tmp[5] += (short)va[5] * vb[5];
+                    sum0_tmp[6] += (short)va[6] * vb[6];
+                    sum0_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum1_tmp[0] += (short)va[0] * vb[0];
+                    sum1_tmp[1] += (short)va[1] * vb[1];
+                    sum1_tmp[2] += (short)va[2] * vb[2];
+                    sum1_tmp[3] += (short)va[3] * vb[3];
+                    sum1_tmp[4] += (short)va[4] * vb[4];
+                    sum1_tmp[5] += (short)va[5] * vb[5];
+                    sum1_tmp[6] += (short)va[6] * vb[6];
+                    sum1_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum2_tmp[0] += (short)va[0] * vb[0];
+                    sum2_tmp[1] += (short)va[1] * vb[1];
+                    sum2_tmp[2] += (short)va[2] * vb[2];
+                    sum2_tmp[3] += (short)va[3] * vb[3];
+                    sum2_tmp[4] += (short)va[4] * vb[4];
+                    sum2_tmp[5] += (short)va[5] * vb[5];
+                    sum2_tmp[6] += (short)va[6] * vb[6];
+                    sum2_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum3_tmp[0] += (short)va[0] * vb[0];
+                    sum3_tmp[1] += (short)va[1] * vb[1];
+                    sum3_tmp[2] += (short)va[2] * vb[2];
+                    sum3_tmp[3] += (short)va[3] * vb[3];
+                    sum3_tmp[4] += (short)va[4] * vb[4];
+                    sum3_tmp[5] += (short)va[5] * vb[5];
+                    sum3_tmp[6] += (short)va[6] * vb[6];
+                    sum3_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    vb += 8;
+
+                    // roll 7
+                    sum0_tmp[0] += (short)va[0] * vb[0];
+                    sum0_tmp[1] += (short)va[1] * vb[1];
+                    sum0_tmp[2] += (short)va[2] * vb[2];
+                    sum0_tmp[3] += (short)va[3] * vb[3];
+                    sum0_tmp[4] += (short)va[4] * vb[4];
+                    sum0_tmp[5] += (short)va[5] * vb[5];
+                    sum0_tmp[6] += (short)va[6] * vb[6];
+                    sum0_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum1_tmp[0] += (short)va[0] * vb[0];
+                    sum1_tmp[1] += (short)va[1] * vb[1];
+                    sum1_tmp[2] += (short)va[2] * vb[2];
+                    sum1_tmp[3] += (short)va[3] * vb[3];
+                    sum1_tmp[4] += (short)va[4] * vb[4];
+                    sum1_tmp[5] += (short)va[5] * vb[5];
+                    sum1_tmp[6] += (short)va[6] * vb[6];
+                    sum1_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum2_tmp[0] += (short)va[0] * vb[0];
+                    sum2_tmp[1] += (short)va[1] * vb[1];
+                    sum2_tmp[2] += (short)va[2] * vb[2];
+                    sum2_tmp[3] += (short)va[3] * vb[3];
+                    sum2_tmp[4] += (short)va[4] * vb[4];
+                    sum2_tmp[5] += (short)va[5] * vb[5];
+                    sum2_tmp[6] += (short)va[6] * vb[6];
+                    sum2_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    sum3_tmp[0] += (short)va[0] * vb[0];
+                    sum3_tmp[1] += (short)va[1] * vb[1];
+                    sum3_tmp[2] += (short)va[2] * vb[2];
+                    sum3_tmp[3] += (short)va[3] * vb[3];
+                    sum3_tmp[4] += (short)va[4] * vb[4];
+                    sum3_tmp[5] += (short)va[5] * vb[5];
+                    sum3_tmp[6] += (short)va[6] * vb[6];
+                    sum3_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    vb += 8;
+
+                    sum0_tmp[0] = (sum0_tmp[0] + 1) >> 1;
+                    sum0_tmp[1] = (sum0_tmp[1] + 1) >> 1;
+                    sum0_tmp[2] = (sum0_tmp[2] + 1) >> 1;
+                    sum0_tmp[3] = (sum0_tmp[3] + 1) >> 1;
+                    sum0_tmp[4] = (sum0_tmp[4] + 1) >> 1;
+                    sum0_tmp[5] = (sum0_tmp[5] + 1) >> 1;
+                    sum0_tmp[6] = (sum0_tmp[6] + 1) >> 1;
+                    sum0_tmp[7] = (sum0_tmp[7] + 1) >> 1;
+
+                    sum1_tmp[0] = (sum1_tmp[0] + 1) >> 1;
+                    sum1_tmp[1] = (sum1_tmp[1] + 1) >> 1;
+                    sum1_tmp[2] = (sum1_tmp[2] + 1) >> 1;
+                    sum1_tmp[3] = (sum1_tmp[3] + 1) >> 1;
+                    sum1_tmp[4] = (sum1_tmp[4] + 1) >> 1;
+                    sum1_tmp[5] = (sum1_tmp[5] + 1) >> 1;
+                    sum1_tmp[6] = (sum1_tmp[6] + 1) >> 1;
+                    sum1_tmp[7] = (sum1_tmp[7] + 1) >> 1;
+
+                    sum2_tmp[0] = (sum2_tmp[0] + 1) >> 1;
+                    sum2_tmp[1] = (sum2_tmp[1] + 1) >> 1;
+                    sum2_tmp[2] = (sum2_tmp[2] + 1) >> 1;
+                    sum2_tmp[3] = (sum2_tmp[3] + 1) >> 1;
+                    sum2_tmp[4] = (sum2_tmp[4] + 1) >> 1;
+                    sum2_tmp[5] = (sum2_tmp[5] + 1) >> 1;
+                    sum2_tmp[6] = (sum2_tmp[6] + 1) >> 1;
+                    sum2_tmp[7] = (sum2_tmp[7] + 1) >> 1;        
+
+                    sum3_tmp[0] = (sum3_tmp[0] + 1) >> 1;
+                    sum3_tmp[1] = (sum3_tmp[1] + 1) >> 1;
+                    sum3_tmp[2] = (sum3_tmp[2] + 1) >> 1;
+                    sum3_tmp[3] = (sum3_tmp[3] + 1) >> 1;
+                    sum3_tmp[4] = (sum3_tmp[4] + 1) >> 1;
+                    sum3_tmp[5] = (sum3_tmp[5] + 1) >> 1;
+                    sum3_tmp[6] = (sum3_tmp[6] + 1) >> 1;
+                    sum3_tmp[7] = (sum3_tmp[7] + 1) >> 1;                                 
+
+                    sum0_s16[0] = saturate2int16((int)(sum0_s16[0]) + sum0_tmp[0]);
+                    sum0_s16[1] = saturate2int16((int)(sum0_s16[1]) + sum0_tmp[1]);
+                    sum0_s16[2] = saturate2int16((int)(sum0_s16[2]) + sum0_tmp[2]);
+                    sum0_s16[3] = saturate2int16((int)(sum0_s16[3]) + sum0_tmp[3]);
+                    sum0_s16[4] = saturate2int16((int)(sum0_s16[4]) + sum0_tmp[4]);
+                    sum0_s16[5] = saturate2int16((int)(sum0_s16[5]) + sum0_tmp[5]);
+                    sum0_s16[6] = saturate2int16((int)(sum0_s16[6]) + sum0_tmp[6]);
+                    sum0_s16[7] = saturate2int16((int)(sum0_s16[7]) + sum0_tmp[7]);
+
+                    sum1_s16[0] = saturate2int16((int)(sum1_s16[0]) + sum1_tmp[0]);
+                    sum1_s16[1] = saturate2int16((int)(sum1_s16[1]) + sum1_tmp[1]);
+                    sum1_s16[2] = saturate2int16((int)(sum1_s16[2]) + sum1_tmp[2]);
+                    sum1_s16[3] = saturate2int16((int)(sum1_s16[3]) + sum1_tmp[3]);
+                    sum1_s16[4] = saturate2int16((int)(sum1_s16[4]) + sum1_tmp[4]);
+                    sum1_s16[5] = saturate2int16((int)(sum1_s16[5]) + sum1_tmp[5]);
+                    sum1_s16[6] = saturate2int16((int)(sum1_s16[6]) + sum1_tmp[6]);
+                    sum1_s16[7] = saturate2int16((int)(sum1_s16[7]) + sum1_tmp[7]);
+
+                    sum2_s16[0] = saturate2int16((int)(sum2_s16[0]) + sum2_tmp[0]);
+                    sum2_s16[1] = saturate2int16((int)(sum2_s16[1]) + sum2_tmp[1]);
+                    sum2_s16[2] = saturate2int16((int)(sum2_s16[2]) + sum2_tmp[2]);
+                    sum2_s16[3] = saturate2int16((int)(sum2_s16[3]) + sum2_tmp[3]);
+                    sum2_s16[4] = saturate2int16((int)(sum2_s16[4]) + sum2_tmp[4]);
+                    sum2_s16[5] = saturate2int16((int)(sum2_s16[5]) + sum2_tmp[5]);
+                    sum2_s16[6] = saturate2int16((int)(sum2_s16[6]) + sum2_tmp[6]);
+                    sum2_s16[7] = saturate2int16((int)(sum2_s16[7]) + sum2_tmp[7]);
+
+                    sum3_s16[0] = saturate2int16((int)(sum3_s16[0]) + sum3_tmp[0]);
+                    sum3_s16[1] = saturate2int16((int)(sum3_s16[1]) + sum3_tmp[1]);
+                    sum3_s16[2] = saturate2int16((int)(sum3_s16[2]) + sum3_tmp[2]);
+                    sum3_s16[3] = saturate2int16((int)(sum3_s16[3]) + sum3_tmp[3]);
+                    sum3_s16[4] = saturate2int16((int)(sum3_s16[4]) + sum3_tmp[4]);
+                    sum3_s16[5] = saturate2int16((int)(sum3_s16[5]) + sum3_tmp[5]);
+                    sum3_s16[6] = saturate2int16((int)(sum3_s16[6]) + sum3_tmp[6]);
+                    sum3_s16[7] = saturate2int16((int)(sum3_s16[7]) + sum3_tmp[7]);
+                }
+
+                sum0 = saturate2int16((int)sum0 + sum0_s16[0]);
+                sum0 = saturate2int16((int)sum0 + sum0_s16[1]);
+                sum0 = saturate2int16((int)sum0 + sum0_s16[2]);
+                sum0 = saturate2int16((int)sum0 + sum0_s16[3]);
+                sum0 = saturate2int16((int)sum0 + sum0_s16[4]);
+                sum0 = saturate2int16((int)sum0 + sum0_s16[5]);
+                sum0 = saturate2int16((int)sum0 + sum0_s16[6]);
+                sum0 = saturate2int16((int)sum0 + sum0_s16[7]);
+
+                sum1 = saturate2int16((int)sum1 + sum1_s16[0]);
+                sum1 = saturate2int16((int)sum1 + sum1_s16[1]);
+                sum1 = saturate2int16((int)sum1 + sum1_s16[2]);
+                sum1 = saturate2int16((int)sum1 + sum1_s16[3]);
+                sum1 = saturate2int16((int)sum1 + sum1_s16[4]);
+                sum1 = saturate2int16((int)sum1 + sum1_s16[5]);
+                sum1 = saturate2int16((int)sum1 + sum1_s16[6]);
+                sum1 = saturate2int16((int)sum1 + sum1_s16[7]);
+
+                sum2 = saturate2int16((int)sum2 + sum2_s16[0]);
+                sum2 = saturate2int16((int)sum2 + sum2_s16[1]);
+                sum2 = saturate2int16((int)sum2 + sum2_s16[2]);
+                sum2 = saturate2int16((int)sum2 + sum2_s16[3]);
+                sum2 = saturate2int16((int)sum2 + sum2_s16[4]);
+                sum2 = saturate2int16((int)sum2 + sum2_s16[5]);
+                sum2 = saturate2int16((int)sum2 + sum2_s16[6]);
+                sum2 = saturate2int16((int)sum2 + sum2_s16[7]);
+
+                sum3 = saturate2int16((int)sum3 + sum3_s16[0]);
+                sum3 = saturate2int16((int)sum3 + sum3_s16[1]);
+                sum3 = saturate2int16((int)sum3 + sum3_s16[2]);
+                sum3 = saturate2int16((int)sum3 + sum3_s16[3]);
+                sum3 = saturate2int16((int)sum3 + sum3_s16[4]);
+                sum3 = saturate2int16((int)sum3 + sum3_s16[5]);
+                sum3 = saturate2int16((int)sum3 + sum3_s16[6]);
+                sum3 = saturate2int16((int)sum3 + sum3_s16[7]);
+
+                for (; k+7<K; k=k+8)
+                {
+                    short sum_tmp0 = 0;
+                    short sum_tmp1 = 0;
+                    short sum_tmp2 = 0;
+                    short sum_tmp3 = 0;
+
+                    sum_tmp0 = (short)va[0] * vb[0];
+                    sum_tmp0 += (short)va[1] * vb[1];
+                    sum_tmp0 += (short)va[2] * vb[2];
+                    sum_tmp0 += (short)va[3] * vb[3];
+                    sum_tmp0 += (short)va[4] * vb[4];
+                    sum_tmp0 += (short)va[5] * vb[5];
+                    sum_tmp0 += (short)va[6] * vb[6];
+                    sum_tmp0 += (short)va[7] * vb[7];
+                    va += 8;
+                    sum_tmp1 = (short)va[0] * vb[0];
+                    sum_tmp1 += (short)va[1] * vb[1];
+                    sum_tmp1 += (short)va[2] * vb[2];
+                    sum_tmp1 += (short)va[3] * vb[3];
+                    sum_tmp1 += (short)va[4] * vb[4];
+                    sum_tmp1 += (short)va[5] * vb[5];
+                    sum_tmp1 += (short)va[6] * vb[6];
+                    sum_tmp1 += (short)va[7] * vb[7];
+                    va += 8;
+                    sum_tmp2 = (short)va[0] * vb[0];
+                    sum_tmp2 += (short)va[1] * vb[1];
+                    sum_tmp2 += (short)va[2] * vb[2];
+                    sum_tmp2 += (short)va[3] * vb[3];
+                    sum_tmp2 += (short)va[4] * vb[4];
+                    sum_tmp2 += (short)va[5] * vb[5];
+                    sum_tmp2 += (short)va[6] * vb[6];
+                    sum_tmp2 += (short)va[7] * vb[7];
+                    va += 8;
+                    sum_tmp3 = (short)va[0] * vb[0];
+                    sum_tmp3 += (short)va[1] * vb[1];
+                    sum_tmp3 += (short)va[2] * vb[2];
+                    sum_tmp3 += (short)va[3] * vb[3];
+                    sum_tmp3 += (short)va[4] * vb[4];
+                    sum_tmp3 += (short)va[5] * vb[5];
+                    sum_tmp3 += (short)va[6] * vb[6];
+                    sum_tmp3 += (short)va[7] * vb[7];
+                    sum_tmp0 = (sum_tmp0 + 1) >> 1;
+                    sum_tmp1 = (sum_tmp1 + 1) >> 1;
+                    sum_tmp2 = (sum_tmp2 + 1) >> 1;
+                    sum_tmp3 = (sum_tmp3 + 1) >> 1;
+                    va += 8;
+                    vb += 8;
+                    sum0 = saturate2int16((int)(sum0) + sum_tmp0);
+                    sum1 = saturate2int16((int)(sum1) + sum_tmp1);
+                    sum2 = saturate2int16((int)(sum2) + sum_tmp2);
+                    sum3 = saturate2int16((int)(sum3) + sum_tmp3);
+                }                
+
+                for (; k<K; k++)
+                {
+                    int sum_tmp0 = 0;
+                    int sum_tmp1 = 0;
+                    int sum_tmp2 = 0;
+                    int sum_tmp3 = 0;
+
+                    sum_tmp0 += (int)va[0] * vb[0];
+                    sum_tmp1 += (int)va[1] * vb[0];
+                    sum_tmp2 += (int)va[2] * vb[0];
+                    sum_tmp3 += (int)va[3] * vb[0];
+
+                    sum_tmp0 = (sum_tmp0 + 1) >> 1;
+                    sum_tmp1 = (sum_tmp1 + 1) >> 1;
+                    sum_tmp2 = (sum_tmp2 + 1) >> 1;
+                    sum_tmp3 = (sum_tmp3 + 1) >> 1;
+
+                    sum0 = saturate2int16((int)(sum0) + sum_tmp0);
+                    sum1 = saturate2int16((int)(sum1) + sum_tmp1);
+                    sum2 = saturate2int16((int)(sum2) + sum_tmp2);
+                    sum3 = saturate2int16((int)(sum3) + sum_tmp3);
+
+                    va += 4;
+                    vb += 1;
+                }
+
+                // dequant convert int32 to fp32
+                output0[0] = float2int8(((float)sum0 * scale_requant_in0 + bias0) * scale_requant_out0);
+                output1[0] = float2int8(((float)sum1 * scale_requant_in1 + bias1) * scale_requant_out1);
+                output2[0] = float2int8(((float)sum2 * scale_requant_in2 + bias2) * scale_requant_out2);
+                output3[0] = float2int8(((float)sum3 * scale_requant_in3 + bias3) * scale_requant_out3);
+
+                output0++;
+                output1++;
+                output2++;
+                output3++;
+            }
+        }
+
+        for (int i=remain_outch_start; i<outch; i++)
+        {
+            float* output = top_blob.channel(i);
+
+            const float bias0 = bias ? bias[i] : 0.f;
+
+            const float scale_requant_in0  = scale_requant[2*i];
+            const float scale_requant_out0 = scale_requant[2*i+1]; 
+
+            for (int j=0; j<N; j++)
+            {
+                signed char* vb = bottom_im2row.row<signed char>(j);
+                const signed char* va = _kernel.channel(i/4 + i%4);
+
+                short sum = 0;
+                short sum_s16[8] = {0};
+
+                int k = 0;
+                for (; k+63<K; k=k+64)
+                {
+                    short sum_tmp[8] = {0};
+                    // roll 0
+                    sum_tmp[0] = (short)va[0] * vb[0];
+                    sum_tmp[1] = (short)va[1] * vb[1];
+                    sum_tmp[2] = (short)va[2] * vb[2];
+                    sum_tmp[3] = (short)va[3] * vb[3];
+                    sum_tmp[4] = (short)va[4] * vb[4];
+                    sum_tmp[5] = (short)va[5] * vb[5];
+                    sum_tmp[6] = (short)va[6] * vb[6];
+                    sum_tmp[7] = (short)va[7] * vb[7];
+                    va += 8;
+                    vb += 8;
+                    // roll 1
+                    sum_tmp[0] += (short)va[0] * vb[0];
+                    sum_tmp[1] += (short)va[1] * vb[1];
+                    sum_tmp[2] += (short)va[2] * vb[2];
+                    sum_tmp[3] += (short)va[3] * vb[3];
+                    sum_tmp[4] += (short)va[4] * vb[4];
+                    sum_tmp[5] += (short)va[5] * vb[5];
+                    sum_tmp[6] += (short)va[6] * vb[6];
+                    sum_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    vb += 8;
+                    // roll 2
+                    sum_tmp[0] += (short)va[0] * vb[0];
+                    sum_tmp[1] += (short)va[1] * vb[1];
+                    sum_tmp[2] += (short)va[2] * vb[2];
+                    sum_tmp[3] += (short)va[3] * vb[3];
+                    sum_tmp[4] += (short)va[4] * vb[4];
+                    sum_tmp[5] += (short)va[5] * vb[5];
+                    sum_tmp[6] += (short)va[6] * vb[6];
+                    sum_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    vb += 8;
+                    // roll 3
+                    sum_tmp[0] += (short)va[0] * vb[0];
+                    sum_tmp[1] += (short)va[1] * vb[1];
+                    sum_tmp[2] += (short)va[2] * vb[2];
+                    sum_tmp[3] += (short)va[3] * vb[3];
+                    sum_tmp[4] += (short)va[4] * vb[4];
+                    sum_tmp[5] += (short)va[5] * vb[5];
+                    sum_tmp[6] += (short)va[6] * vb[6];
+                    sum_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    vb += 8;
+                    // roll 4
+                    sum_tmp[0] += (short)va[0] * vb[0];
+                    sum_tmp[1] += (short)va[1] * vb[1];
+                    sum_tmp[2] += (short)va[2] * vb[2];
+                    sum_tmp[3] += (short)va[3] * vb[3];
+                    sum_tmp[4] += (short)va[4] * vb[4];
+                    sum_tmp[5] += (short)va[5] * vb[5];
+                    sum_tmp[6] += (short)va[6] * vb[6];
+                    sum_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    vb += 8;
+                    // roll 5
+                    sum_tmp[0] += (short)va[0] * vb[0];
+                    sum_tmp[1] += (short)va[1] * vb[1];
+                    sum_tmp[2] += (short)va[2] * vb[2];
+                    sum_tmp[3] += (short)va[3] * vb[3];
+                    sum_tmp[4] += (short)va[4] * vb[4];
+                    sum_tmp[5] += (short)va[5] * vb[5];
+                    sum_tmp[6] += (short)va[6] * vb[6];
+                    sum_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    vb += 8;
+                    // roll 6
+                    sum_tmp[0] += (short)va[0] * vb[0];
+                    sum_tmp[1] += (short)va[1] * vb[1];
+                    sum_tmp[2] += (short)va[2] * vb[2];
+                    sum_tmp[3] += (short)va[3] * vb[3];
+                    sum_tmp[4] += (short)va[4] * vb[4];
+                    sum_tmp[5] += (short)va[5] * vb[5];
+                    sum_tmp[6] += (short)va[6] * vb[6];
+                    sum_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    vb += 8;
+                    // roll 7
+                    sum_tmp[0] += (short)va[0] * vb[0];
+                    sum_tmp[1] += (short)va[1] * vb[1];
+                    sum_tmp[2] += (short)va[2] * vb[2];
+                    sum_tmp[3] += (short)va[3] * vb[3];
+                    sum_tmp[4] += (short)va[4] * vb[4];
+                    sum_tmp[5] += (short)va[5] * vb[5];
+                    sum_tmp[6] += (short)va[6] * vb[6];
+                    sum_tmp[7] += (short)va[7] * vb[7];
+                    va += 8;
+                    vb += 8;
+
+                    sum_tmp[0] = (sum_tmp[0] + 1) >> 1;
+                    sum_tmp[1] = (sum_tmp[1] + 1) >> 1;
+                    sum_tmp[2] = (sum_tmp[2] + 1) >> 1;
+                    sum_tmp[3] = (sum_tmp[3] + 1) >> 1;
+                    sum_tmp[4] = (sum_tmp[4] + 1) >> 1;
+                    sum_tmp[5] = (sum_tmp[5] + 1) >> 1;
+                    sum_tmp[6] = (sum_tmp[6] + 1) >> 1;
+                    sum_tmp[7] = (sum_tmp[7] + 1) >> 1;
+
+                    sum_s16[0] = saturate2int16((int)(sum_s16[0]) + sum_tmp[0]);
+                    sum_s16[1] = saturate2int16((int)(sum_s16[1]) + sum_tmp[1]);
+                    sum_s16[2] = saturate2int16((int)(sum_s16[2]) + sum_tmp[2]);
+                    sum_s16[3] = saturate2int16((int)(sum_s16[3]) + sum_tmp[3]);
+                    sum_s16[4] = saturate2int16((int)(sum_s16[4]) + sum_tmp[4]);
+                    sum_s16[5] = saturate2int16((int)(sum_s16[5]) + sum_tmp[5]);
+                    sum_s16[6] = saturate2int16((int)(sum_s16[6]) + sum_tmp[6]);
+                    sum_s16[7] = saturate2int16((int)(sum_s16[7]) + sum_tmp[7]);
+                }
+
+                sum = saturate2int16((int)sum + sum_s16[0]);
+                sum = saturate2int16((int)sum + sum_s16[1]);
+                sum = saturate2int16((int)sum + sum_s16[2]);
+                sum = saturate2int16((int)sum + sum_s16[3]);
+                sum = saturate2int16((int)sum + sum_s16[4]);
+                sum = saturate2int16((int)sum + sum_s16[5]);
+                sum = saturate2int16((int)sum + sum_s16[6]);
+                sum = saturate2int16((int)sum + sum_s16[7]);                
+
+                for (; k<K; k++)
+                {
+                    short sum_tmp = 0;
+                    sum_tmp += (short)va[0] * vb[0];
+
+                    sum_tmp = (sum_tmp + 1) >> 1;
+                    sum = saturate2int16((int)(sum) + sum_tmp);
+
+                    va += 1;
+                    vb += 1;
+                }
+
+                // dequant convert int32 to fp32
+                output[0] = float2int8(((float)sum * scale_requant_in0 + bias0) * scale_requant_out0);
                 output++;
             }
         }
