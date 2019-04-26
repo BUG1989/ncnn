@@ -141,20 +141,14 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
         int channels = bottom_blob.c;
         int size = w * h;
 
-        double scale_in_tmp = scale_in * 2.0;
-        double scale_fuse = scale_in_tmp * scale_out;
-        short scale_fuse_shift = round(log(scale_fuse) / log(2));
-        short shift_round = (short)(0.5 * scale_fuse);
+        double scale_fuse = scale_in * scale_out;
+        short scale_fuse_shift = 0 - (round(log(scale_fuse) / log(2)));
+        short shift_round = (short)(0.5 / scale_fuse);
 
 #if __ARM_NEON
         int16x8_t _shift_round = vdupq_n_s16(shift_round);
         int16x8_t _shift = vdupq_n_s16(0 - scale_fuse_shift);
-
-        float32x4_t _scale_in = vdupq_n_f32(scale_in_tmp);
-        float32x4_t _scale_out = vdupq_n_f32(scale_out);
-        float32x4_t _scale_fuse = vdupq_n_f32(scale_fuse);
 #endif
-
         if (bias_term)
         {
             //#pragma omp parallel for num_threads(opt.num_threads)
@@ -164,123 +158,44 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                 signed char* ptr = top_blob.channel(q);
 
                 float bias = bias_data_size > 1 ? bias_data[q] : bias_data[0];
-                // short bias_tm = floor(bias * scale_in_tmp);
-                // int16x8_t _bias_tm = vdupq_n_s16(bias_tm);
+                short bias_tm = floor(bias / scale_in);
+                int16x8_t _bias_tm = vdupq_n_s16(bias_tm);
 
-#if 1 //__ARM_NEON
+#if __ARM_NEON
                 int nn = size >> 3;
                 int remain = size & 7;
-#if 1 //__aarch64__
-                // if (nn > 0)
-                // {
-                // asm volatile(   
-                //     "0:                              \n"
-                //     // load top_blob s16
-                //     "prfm   pldl1keep, [%1, #128]    \n"
-                //     "ld1    {v0.8h}, [%1], #16       \n"
-                //     // top_blob = top_blob + shift_round
-                //     "add    v1.8h, v0.8h, %7.8h      \n"
-                //     // top_blob = top_blob + bias_tm
-                //     "add    v2.8h, v1.8h, %6.8h      \n"
-                //     // top_blob = top_blob >> scale_fuse_shift
-                //     "sshl   v5.8h, v2.8h, %8.8h      \n"
-                //     // top_blob s16 -> s8
-                //     "sqxtn   v6.8b, v5.8h            \n"
-                //     // store top_blob s8
-                //     "st1    {v6.8b}, [%2], #8        \n"
-
-                //     "subs	%w0, %w0, #1		     \n"
-                //     "bne		0b			         \n"                
-                //     : "=r"(nn), 			// %0
-                //       "=r"(intptr),		    // %1
-                //       "=r"(ptr) 		    // %2
-                //     : "0"(nn),
-                //       "1"(intptr),
-                //       "2"(ptr),
-                //       "w"(_bias_tm),        // %6
-                //       "w"(_shift_round),    // %7
-                //       "w"(_shift)           // %8
-                //     : "cc", "memory", "v0", "v1", "v2", "v5", "v6"
-                // );
-                // asm volatile(
-                //     "dup    v2.4s, %w6                   \n" // scale_in_tmp
-                //     "dup    v3.4s, %w7                   \n" // scale_out
-                //     "dup    v4.4s, %w8                   \n" // bias
-                //     "0:                                  \n"
-                //     "prfm   pldl1keep, [%1, #128]        \n"
-                //     "ld1    {v0.8h}, [%1], #16           \n" // data
-                //     // top_s16 -> top_s32
-                //     "sshll    v5.4s, v0.4h, #0           \n"
-                //     "sshll2   v6.4s, v0.8h, #0           \n"
-                //     // top_s32 -> top_f32
-                //     "scvtf  v5.4s, v5.4s                 \n"
-                //     "scvtf  v6.4s, v6.4s                 \n"
-                //     // top_f32 = top_f32 * scale_in
-                //     "fmul   v5.4s, v5.4s, v2.4s          \n"
-                //     "fmul   v6.4s, v6.4s, v2.4s          \n"
-                //     // top_f32 = top_f32 + bias
-                //     "fadd   v5.4s, v5.4s, v4.4s          \n"
-                //     "fadd   v6.4s, v6.4s, v4.4s          \n"
-                //     // top_f32 = top_f32 * scale_out
-                //     "fmul   v5.4s, v5.4s, v3.4s          \n"
-                //     "fmul   v6.4s, v6.4s, v3.4s          \n"
-                //     // top_f32 -> top_s32
-                //     "fcvtas v5.4s, v5.4s                 \n"
-                //     "fcvtas v6.4s, v6.4s                 \n"
-                //     // top_s32 -> top_s16
-                //     "sqxtn  v7.4h, v5.4s                 \n"
-                //     "sqxtn2 v7.8h, v6.4s                 \n"
-                //     // top_s16 -> top_s8
-                //     "sqxtn  v8.8b, v7.8h                 \n"
-                //     // save top_s8
-                //     "st1    {v8.8b}, [%2], #8            \n"
-                //     "subs   %w0, %w0, #1                 \n"
-                //     "bne    0b                           \n"
-                //     : "=r"(nn),         // %0
-                //       "=r"(intptr),     // %1
-                //       "=r"(ptr)         // %2
-                //     : "0"(nn),
-                //       "1"(intptr),
-                //       "2"(ptr),
-                //       "r"(scale_in_tmp),// %6
-                //       "r"(scale_out),   // %7
-                //       "r"(bias)         // %8
-                //     : "cc", "memory", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"
-                // );                 
-                // }
-                float32x4_t _bias = vdupq_n_f32(bias);
-
-                for ( ; nn > 0; nn--)
+#if __aarch64__
+                if (nn > 0)
                 {
-                    int16x8_t _top_s16 = vld1q_s16(intptr);
-                    // top_s16 -> top_s32
-                    int32x4_t _top_s32_0 = vmovl_s16(vget_low_s16(_top_s16));
-                    int32x4_t _top_s32_1 = vmovl_s16(vget_high_s16(_top_s16));
-                    // top_s32 -> top_f32
-                    float32x4_t _top_f32_0 = vcvtq_f32_s32(_top_s32_0);
-                    float32x4_t _top_f32_1 = vcvtq_f32_s32(_top_s32_1);
-                    // top_f32 = top_f32 * scale_in
-                    _top_f32_0 = vmulq_f32(_top_f32_0, _scale_in);
-                    _top_f32_1 = vmulq_f32(_top_f32_1, _scale_in);
-                    // top_f32 = top_f32 + bias
-                    _top_f32_0 = vaddq_f32(_top_f32_0, _bias);
-                    _top_f32_1 = vaddq_f32(_top_f32_1, _bias);
-                    // top_f32 = top_f32 * scale_out
-                    _top_f32_0 = vmulq_f32(_top_f32_0, _scale_out);
-                    _top_f32_1 = vmulq_f32(_top_f32_1, _scale_out);
-                    // top_f32 -> top_s32
-                    _top_s32_0 = vcvtaq_s32_f32(_top_f32_0);
-                    _top_s32_1 = vcvtaq_s32_f32(_top_f32_1);
-                    // top_s32 -> top_s16
-                    int16x4_t _top_s16_0 = vqmovn_s32(_top_s32_0);
-                    int16x4_t _top_s16_1 = vqmovn_s32(_top_s32_1);
-                    // top_s16 -> top_s8
-                    int8x8_t _top_s8 = vqmovn_s16(vcombine_s16(_top_s16_0, _top_s16_1));
-                    // save top_s8
-                    vst1_s8(ptr, _top_s8);
+                    asm volatile(   
+                        "0:                              \n"
+                        // load top_blob s16
+                        "prfm   pldl1keep, [%1, #128]    \n"
+                        "ld1    {v0.8h}, [%1], #16       \n"
+                        // top_blob = top_blob + shift_round
+                        "add    v1.8h, v0.8h, %7.8h      \n"
+                        // top_blob = top_blob + bias_tm
+                        "add    v2.8h, v1.8h, %6.8h      \n"
+                        // top_blob = top_blob >> scale_fuse_shift
+                        "sshl   v5.8h, v2.8h, %8.8h      \n"
+                        // top_blob s16 -> s8
+                        "sqxtn   v6.8b, v5.8h            \n"
+                        // store top_blob s8
+                        "st1    {v6.8b}, [%2], #8        \n"
 
-                    intptr += 8;
-                    ptr += 8;
+                        "subs	%w0, %w0, #1		     \n"
+                        "bne		0b			         \n"
+                        : "=r"(nn), 		   // %0
+                         "=r"(intptr),		   // %1
+                         "=r"(ptr) 		       // %2
+                        : "0"(nn),
+                         "1"(intptr),
+                         "2"(ptr),
+                         "w"(_bias_tm),        // %6
+                         "w"(_shift_round),    // %7
+                         "w"(_shift)           // %8
+                        : "cc", "memory", "v0", "v1", "v2", "v5", "v6"
+                    );
                 }
 #else
                 if (nn > 0)
@@ -344,7 +259,7 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
 
                 for (; remain > 0; remain--)
                 {
-                    *ptr = float2int8(((*intptr * scale_in_tmp) + bias) * scale_out);
+                    *ptr = float2int8(((int)(*intptr) + shift_round + bias_tm) >> scale_fuse_shift);
 
                     intptr++;
                     ptr ++;
@@ -364,61 +279,35 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                 int remain = size & 7;
 
 #if __aarch64__
-                // if (nn > 0)
-                // {
-                // asm volatile(   
-                //     "0:                              \n"
-                //     // load top_blob s16
-                //     "prfm   pldl1keep, [%1, #128]    \n"
-                //     "ld1    {v0.8h}, [%1], #16       \n"
-                //     // top_blob = top_blob + shift_round
-                //     "add    v1.8h, v0.8h, %6.8h      \n"
-                //     // top_blob = top_blob >> scale_fuse_shift
-                //     "sshl   v5.8h, v2.8h, %7.8h      \n"
-                //     // top_blob s16 -> s8
-                //     "sqxtn   v6.8b, v5.8h            \n"
-                //     // store top_blob s8
-                //     "st1    {v6.8b}, [%2], #8        \n"
-
-                //     "subs	%w0, %w0, #1		     \n"
-                //     "bne		0b			         \n"                
-                //     : "=r"(nn), 			// %0
-                //       "=r"(intptr),		    // %1
-                //       "=r"(ptr) 		    // %2
-                //     : "0"(nn),
-                //       "1"(intptr),
-                //       "2"(ptr),
-                //       "w"(_shift_round),    // %6
-                //       "w"(_shift)           // %7
-                //     : "cc", "memory", "v0", "v1", "v2", "v5", "v6"
-                // );
-                // }
-                for ( ; nn > 0; nn--)
+                if (nn > 0)
                 {
-                    int16x8_t _top_s16 = vld1q_s16(intptr);
-                    // top_s16 -> top_s32
-                    int32x4_t _top_s32_0 = vmovl_s16(vget_low_s16(_top_s16));
-                    int32x4_t _top_s32_1 = vmovl_s16(vget_high_s16(_top_s16));
-                    // top_s32 -> top_f32
-                    float32x4_t _top_f32_0 = vcvtq_f32_s32(_top_s32_0);
-                    float32x4_t _top_f32_1 = vcvtq_f32_s32(_top_s32_1);
-                    // top_f32 = top_f32 * scale_fuse
-                    _top_f32_0 = vmulq_f32(_top_f32_0, _scale_fuse);
-                    _top_f32_1 = vmulq_f32(_top_f32_1, _scale_fuse);
-                    // top_f32 -> top_s32
-                    _top_s32_0 = vcvtaq_s32_f32(_top_f32_0);
-                    _top_s32_1 = vcvtaq_s32_f32(_top_f32_1);
-                    // top_s32 -> top_s16
-                    int16x4_t _top_s16_0 = vqmovn_s32(_top_s32_0);
-                    int16x4_t _top_s16_1 = vqmovn_s32(_top_s32_1);
-                    // top_s16 -> top_s8
-                    int8x8_t _top_s8 = vqmovn_s16(vcombine_s16(_top_s16_0, _top_s16_1));
-                    // save top_s8
-                    vst1_s8(ptr, _top_s8);
+                    asm volatile(   
+                        "0:                              \n"
+                        // load top_blob s16
+                        "prfm   pldl1keep, [%1, #128]    \n"
+                        "ld1    {v0.8h}, [%1], #16       \n"
+                        // top_blob = top_blob + shift_round
+                        "add    v1.8h, v0.8h, %6.8h      \n"
+                        // top_blob = top_blob >> scale_fuse_shift
+                        "sshl   v5.8h, v2.8h, %7.8h      \n"
+                        // top_blob s16 -> s8
+                        "sqxtn   v6.8b, v5.8h            \n"
+                        // store top_blob s8
+                        "st1    {v6.8b}, [%2], #8        \n"
 
-                    intptr += 8;
-                    ptr += 8;
-                }                                
+                        "subs	%w0, %w0, #1		     \n"
+                        "bne		0b			         \n"
+                        : "=r"(nn), 			// %0
+                          "=r"(intptr),		    // %1
+                          "=r"(ptr) 		    // %2
+                        : "0"(nn),
+                          "1"(intptr),
+                          "2"(ptr),
+                          "w"(_shift_round),    // %6
+                          "w"(_shift)           // %7
+                        : "cc", "memory", "v0", "v1", "v2", "v5", "v6"
+                    );
+                }                            
 #else
                 if (nn > 0)
                 {
@@ -471,7 +360,7 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
 
                 for (; remain > 0; remain--)
                 {
-                    *ptr = float2int8((*intptr * scale_fuse) * scale_out);
+                    *ptr = float2int8(((int)(*intptr) + shift_round) >> scale_fuse_shift);
 
                     intptr++;
                     ptr ++;

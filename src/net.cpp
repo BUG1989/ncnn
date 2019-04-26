@@ -863,7 +863,7 @@ int Net::load_model(const unsigned char* _mem)
 void Net::fuse_network()
 {
     // set the int8 op fusion:requantize
-#if 1 //NCNN_STRING && NCNN_REQUANT    
+#if NCNN_STRING && NCNN_REQUANT    
     // fprintf(stderr, "Test op fusion to int8 implement:\n");
     for (size_t i=0; i<layers.size(); i++)
     {
@@ -871,7 +871,7 @@ void Net::fuse_network()
 
         if (layer->type == "Convolution" || layer->type == "ConvolutionDepthWise")
         {
-            if (((Convolution*)layer)->use_int8_inference == false)
+            if (((Convolution*)layer)->use_int8_inference == false && ((ConvolutionDepthWise*)layer)->use_int8_inference == false)
                 continue;
 
             for (size_t n=0; n<blobs[layer->tops[0]].consumers.size(); n++)

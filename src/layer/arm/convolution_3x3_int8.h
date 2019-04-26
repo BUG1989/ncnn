@@ -4045,6 +4045,10 @@ static void conv3x3s1_winograd43_requant_int8_neon(const Mat& bottom_blob, Mat& 
             const float scale_int = scales_requant[2*p] / 576.0;
             const float scale_out = scales_requant[2*p+1];
 
+            float32x4_t _scale_int = vdupq_n_f32(scale_int);
+            float32x4_t _scale_out = vdupq_n_f32(scale_out);
+            float32x4_t _bias0 = vdupq_n_f32(bias0);
+
             for (int j=0; j<nColBlocks; j++)
             {
                 for(int i=0; i<nRowBlocks; i++)
@@ -4137,12 +4141,11 @@ static void conv3x3s1_winograd43_requant_int8_neon(const Mat& bottom_blob, Mat& 
                     _o3 = vaddq_s32(_o3, _d5);                    
 
                     // save to top blob tm                     
-                    float32x4_t _scale_int = vdupq_n_f32(scale_int);
-                    float32x4_t _scale_out = vdupq_n_f32(scale_out);
-                    float32x4_t _out0_f32 = vdupq_n_f32(bias0);
-                    float32x4_t _out1_f32 = vdupq_n_f32(bias0);
-                    float32x4_t _out2_f32 = vdupq_n_f32(bias0);
-                    float32x4_t _out3_f32 = vdupq_n_f32(bias0);
+
+                    float32x4_t _out0_f32 = _bias0;
+                    float32x4_t _out1_f32 = _bias0;
+                    float32x4_t _out2_f32 = _bias0;
+                    float32x4_t _out3_f32 = _bias0;
 
                     _out0_f32 = vmlaq_f32(_out0_f32, vcvtq_f32_s32(_o0), _scale_int);
                     _out1_f32 = vmlaq_f32(_out1_f32, vcvtq_f32_s32(_o1), _scale_int);
@@ -4153,7 +4156,6 @@ static void conv3x3s1_winograd43_requant_int8_neon(const Mat& bottom_blob, Mat& 
                     _out1_f32 = vmulq_f32(_out1_f32, _scale_out);
                     _out2_f32 = vmulq_f32(_out2_f32, _scale_out);
                     _out3_f32 = vmulq_f32(_out3_f32, _scale_out);
-
 #if __aarch64__
                     int16x4_t _out0_s16 = vqmovn_s32(vcvtaq_s32_f32(_out0_f32));
                     int16x4_t _out1_s16 = vqmovn_s32(vcvtaq_s32_f32(_out1_f32));
@@ -5698,23 +5700,23 @@ static void conv3x3s2_packed_int8_e2e_neon(const Mat& bottom_blob, Mat& top_blob
                     "smlal  v22.8h, v6.8b, v23.8b        \n"// out7 += (r80-r87)*k78
 
                     // add 1 and shift right 1
-                    "add     v8.8h, v8.8h, %26.8h      \n"
-                    "add    v10.8h, v10.8h, %26.8h     \n"
-                    "add    v12.8h, v12.8h, %26.8h     \n"
-                    "add    v14.8h, v14.8h, %26.8h     \n"
-                    "add    v16.8h, v16.8h, %26.8h     \n"
-                    "add    v18.8h, v18.8h, %26.8h     \n"
-                    "add    v20.8h, v20.8h, %26.8h     \n"
-                    "add    v22.8h, v22.8h, %26.8h     \n"
+                    // "add     v8.8h, v8.8h, %26.8h      \n"
+                    // "add    v10.8h, v10.8h, %26.8h     \n"
+                    // "add    v12.8h, v12.8h, %26.8h     \n"
+                    // "add    v14.8h, v14.8h, %26.8h     \n"
+                    // "add    v16.8h, v16.8h, %26.8h     \n"
+                    // "add    v18.8h, v18.8h, %26.8h     \n"
+                    // "add    v20.8h, v20.8h, %26.8h     \n"
+                    // "add    v22.8h, v22.8h, %26.8h     \n"
 
-                    "sshr    v8.8h, v8.8h, #1          \n"
-                    "sshr   v10.8h, v10.8h, #1         \n"
-                    "sshr   v12.8h, v12.8h, #1         \n"
-                    "sshr   v14.8h, v14.8h, #1         \n"
-                    "sshr   v16.8h, v16.8h, #1         \n"
-                    "sshr   v18.8h, v18.8h, #1         \n"
-                    "sshr   v20.8h, v20.8h, #1         \n"
-                    "sshr   v22.8h, v22.8h, #1         \n"
+                    // "sshr    v8.8h, v8.8h, #1          \n"
+                    // "sshr   v10.8h, v10.8h, #1         \n"
+                    // "sshr   v12.8h, v12.8h, #1         \n"
+                    // "sshr   v14.8h, v14.8h, #1         \n"
+                    // "sshr   v16.8h, v16.8h, #1         \n"
+                    // "sshr   v18.8h, v18.8h, #1         \n"
+                    // "sshr   v20.8h, v20.8h, #1         \n"
+                    // "sshr   v22.8h, v22.8h, #1         \n"
 
                     // add saturate to s16
                     "sqadd  v24.8h, v24.8h,  v8.8h     \n"
@@ -6171,23 +6173,23 @@ static void conv3x3s2_packed_int8_e2e_neon(const Mat& bottom_blob, Mat& top_blob
                     "smlal  v22.8h, v6.8b, v23.8b        \n"// out7 += (r80-r87)*k78
 
                     // add 1 and shift right 1
-                    "add     v8.4h, v8.4h, %26.4h      \n"
-                    "add    v10.4h, v10.4h, %26.4h     \n"
-                    "add    v12.4h, v12.4h, %26.4h     \n"
-                    "add    v14.4h, v14.4h, %26.4h     \n"
-                    "add    v16.4h, v16.4h, %26.4h     \n"
-                    "add    v18.4h, v18.4h, %26.4h     \n"
-                    "add    v20.4h, v20.4h, %26.4h     \n"
-                    "add    v22.4h, v22.4h, %26.4h     \n"
+                    // "add     v8.4h, v8.4h, %26.4h      \n"
+                    // "add    v10.4h, v10.4h, %26.4h     \n"
+                    // "add    v12.4h, v12.4h, %26.4h     \n"
+                    // "add    v14.4h, v14.4h, %26.4h     \n"
+                    // "add    v16.4h, v16.4h, %26.4h     \n"
+                    // "add    v18.4h, v18.4h, %26.4h     \n"
+                    // "add    v20.4h, v20.4h, %26.4h     \n"
+                    // "add    v22.4h, v22.4h, %26.4h     \n"
 
-                    "sshr    v8.4h, v8.4h, #1          \n"
-                    "sshr   v10.4h, v10.4h, #1         \n"
-                    "sshr   v12.4h, v12.4h, #1         \n"
-                    "sshr   v14.4h, v14.4h, #1         \n"
-                    "sshr   v16.4h, v16.4h, #1         \n"
-                    "sshr   v18.4h, v18.4h, #1         \n"
-                    "sshr   v20.4h, v20.4h, #1         \n"
-                    "sshr   v22.4h, v22.4h, #1         \n"
+                    // "sshr    v8.4h, v8.4h, #1          \n"
+                    // "sshr   v10.4h, v10.4h, #1         \n"
+                    // "sshr   v12.4h, v12.4h, #1         \n"
+                    // "sshr   v14.4h, v14.4h, #1         \n"
+                    // "sshr   v16.4h, v16.4h, #1         \n"
+                    // "sshr   v18.4h, v18.4h, #1         \n"
+                    // "sshr   v20.4h, v20.4h, #1         \n"
+                    // "sshr   v22.4h, v22.4h, #1         \n"
 
                     // add saturate to s16
                     "sqadd  v24.4h, v24.4h,  v8.4h     \n"
@@ -6303,8 +6305,8 @@ static void conv3x3s2_packed_int8_e2e_neon(const Mat& bottom_blob, Mat& top_blob
                     _sum2 = vaddq_s16(_sum2, _sum1);
 
                     // add 1 shift right 1
-                    _sum2 = vaddq_s16(_sum2, _int1);
-                    _sum2 = vshrq_n_s16(_sum2, 1);
+                    // _sum2 = vaddq_s16(_sum2, _int1);
+                    // _sum2 = vshrq_n_s16(_sum2, 1);
                     
                     _sum07 = vqaddq_s16(_sum07, _sum2);
 
@@ -6532,14 +6534,14 @@ static void conv3x3s2_packed_int8_e2e_neon(const Mat& bottom_blob, Mat& top_blob
                     sum7 += (short)r2[2] * ktmp[7];
                     ktmp += 8;
 
-                    sum0 = (sum0 + 1) >> 1;
-                    sum1 = (sum1 + 1) >> 1;
-                    sum2 = (sum2 + 1) >> 1;
-                    sum3 = (sum3 + 1) >> 1;
-                    sum4 = (sum4 + 1) >> 1;
-                    sum5 = (sum5 + 1) >> 1;
-                    sum6 = (sum6 + 1) >> 1;
-                    sum7 = (sum7 + 1) >> 1;
+                    // sum0 = (sum0 + 1) >> 1;
+                    // sum1 = (sum1 + 1) >> 1;
+                    // sum2 = (sum2 + 1) >> 1;
+                    // sum3 = (sum3 + 1) >> 1;
+                    // sum4 = (sum4 + 1) >> 1;
+                    // sum5 = (sum5 + 1) >> 1;
+                    // sum6 = (sum6 + 1) >> 1;
+                    // sum7 = (sum7 + 1) >> 1;
 
                     *outptr0 = saturate2int16((int)(*outptr0) + sum0);
                     *outptr1 = saturate2int16((int)(*outptr1) + sum1);
@@ -6652,8 +6654,8 @@ static void conv3x3s2_packed_int8_e2e_neon(const Mat& bottom_blob, Mat& top_blob
                     "add    v24.8h, v24.8h, v25.8h       \n"
                     "add    v24.8h, v24.8h, v26.8h       \n"
 
-                    "add    v24.8h, v24.8h, %12.8h       \n"
-                    "sshr   v24.8h, v24.8h, #1           \n"
+                    // "add    v24.8h, v24.8h, %12.8h       \n"
+                    // "sshr   v24.8h, v24.8h, #1           \n"
                     "sqadd  v14.8h, v14.8h, v24.8h       \n"
                     
                     "st1    {v14.8h}, [%1], #16          \n"
@@ -6795,7 +6797,7 @@ static void conv3x3s2_packed_int8_e2e_neon(const Mat& bottom_blob, Mat& top_blob
                         sum += (short)r2[1] * ktmp[7];
                         sum += (short)r2[2] * ktmp[8];
 
-                        sum = (sum + 1) >> 1;
+                        // sum = (sum + 1) >> 1;
 
                         *outptr = saturate2int16((int)(*outptr) + sum);
 #endif // __ARM_NEON
@@ -6814,6 +6816,408 @@ static void conv3x3s2_packed_int8_e2e_neon(const Mat& bottom_blob, Mat& top_blob
             ktmp += 9;
         }
     }
+}
+
+static void conv3x3s2_int8_e2e_neon(const Mat& bottom_blob, Mat& top_blob, const Mat& _kernel, const Option& opt)
+{
+    int w = bottom_blob.w;
+    int h = bottom_blob.h;
+    int inch = bottom_blob.c;
+
+    int outw = top_blob.w;
+    int outh = top_blob.h;
+    int outch = top_blob.c;
+
+    const int tailstep = w - 2 * outw + w;
+
+    const signed char* kernel = _kernel;
+    
+    int nn_outch = outch >> 2;
+    int remain_outch_start = nn_outch << 2; 
+
+    #pragma omp parallel for
+    for (int pp=0; pp < nn_outch; pp++)
+    {
+        int p = pp * 4;
+
+        Mat out0 = top_blob.channel(p);
+        Mat out1 = top_blob.channel(p + 1);
+        Mat out2 = top_blob.channel(p + 2);
+        Mat out3 = top_blob.channel(p + 3);       
+        
+        out0.fill(0.f);
+        out1.fill(0.f);
+        out2.fill(0.f);
+        out3.fill(0.f);
+
+        const signed char* kernel0 = (const signed char*)kernel + p * inch * 9;
+        const signed char* kernel1 = (const signed char*)kernel + (p + 1) * inch * 9;
+        const signed char* kernel2 = (const signed char*)kernel + (p + 2) * inch * 9;
+        const signed char* kernel3 = (const signed char*)kernel + (p + 3) * inch * 9;              
+
+        for (int q=0; q<inch; q++)
+        {
+            short* outptr0 = out0;
+            short* outptr1 = out1;
+            short* outptr2 = out2;
+            short* outptr3 = out3;                
+
+            const signed char* img0 = bottom_blob.channel(q);
+
+            const signed char* r0 = img0;
+            const signed char* r1 = img0 + w;
+            const signed char* r2 = img0 + w * 2;                        
+
+            int i = 0;
+
+            int8x16_t _k0 = vld1q_s8(kernel0);
+            int8x16_t _k1 = vld1q_s8(kernel1);
+            int8x16_t _k2 = vld1q_s8(kernel2);
+            int8x16_t _k3 = vld1q_s8(kernel3);
+
+            for (; i < outh; i++)
+            {                           
+                int nn = outw >> 3;
+                int remain = outw & 7;
+
+                if (nn > 0)
+                {
+                asm volatile(
+                    "0:              			       \n"
+                    // r0
+                    "prfm   pldl1keep, [%5, #128]      \n"
+                    "ld2    {v4.8b, v5.8b}, [%5], #16  \n"
+                    "ld2    {v6.8b, v7.8b}, [%5]       \n"
+                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
+                    
+                    "dup    v9.8b,  %16.b[0]           \n"
+                    "dup    v10.8b, %17.b[0]           \n"
+                    "dup    v11.8b, %18.b[0]           \n"
+                    "dup    v12.8b, %19.b[0]           \n"
+                    
+                    "smull  v13.8h, v4.8b, v9.8b       \n"
+                    "smull  v14.8h, v4.8b, v10.8b      \n"
+                    "smull  v15.8h, v4.8b, v11.8b      \n"
+                    "smull  v16.8h, v4.8b, v12.8b      \n"
+
+                    "dup    v9.8b, %16.b[1]            \n"
+                    "dup    v10.8b, %17.b[1]           \n"
+                    "dup    v11.8b, %18.b[1]           \n"
+                    "dup    v12.8b, %19.b[1]           \n"
+                    
+                    "smlal  v13.8h, v5.8b, v9.8b       \n"
+                    "smlal  v14.8h, v5.8b, v10.8b      \n"
+                    "smlal  v15.8h, v5.8b, v11.8b      \n"
+                    "smlal  v16.8h, v5.8b, v12.8b      \n"
+                    
+                    "dup    v9.8b, %16.b[2]            \n"
+                    "dup    v10.8b, %17.b[2]           \n"
+                    "dup    v11.8b, %18.b[2]           \n"
+                    "dup    v12.8b, %19.b[2]           \n"
+                    
+                    "smlal  v13.8h, v8.8b, v9.8b       \n"
+                    "smlal  v14.8h, v8.8b, v10.8b      \n"
+                    "smlal  v15.8h, v8.8b, v11.8b      \n"
+                    "smlal  v16.8h, v8.8b, v12.8b      \n"
+                    // r1
+                    "prfm   pldl1keep, [%6, #128]      \n"
+                    "ld2    {v4.8b, v5.8b}, [%6], #16  \n"
+                    "ld2    {v6.8b, v7.8b}, [%6]       \n"
+                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
+                    
+                    "dup    v9.8b, %16.b[3]            \n"
+                    "dup    v10.8b, %17.b[3]           \n"
+                    "dup    v11.8b, %18.b[3]           \n"
+                    "dup    v12.8b, %19.b[3]           \n"
+                    
+                    "smlal  v13.8h, v4.8b, v9.8b       \n"
+                    "smlal  v14.8h, v4.8b, v10.8b      \n"
+                    "smlal  v15.8h, v4.8b, v11.8b      \n"
+                    "smlal  v16.8h, v4.8b, v12.8b      \n"
+
+                    "dup    v9.8b, %16.b[4]            \n"
+                    "dup    v10.8b, %17.b[4]           \n"
+                    "dup    v11.8b, %18.b[4]           \n"
+                    "dup    v12.8b, %19.b[4]           \n"
+                    
+                    "smlal  v13.8h, v5.8b, v9.8b       \n"
+                    "smlal  v14.8h, v5.8b, v10.8b      \n"
+                    "smlal  v15.8h, v5.8b, v11.8b      \n"
+                    "smlal  v16.8h, v5.8b, v12.8b      \n"
+                    
+                    "dup    v9.8b, %16.b[5]            \n"
+                    "dup    v10.8b, %17.b[5]           \n"
+                    "dup    v11.8b, %18.b[5]           \n"
+                    "dup    v12.8b, %19.b[5]           \n"
+                    
+                    "smlal  v13.8h, v8.8b, v9.8b       \n"
+                    "smlal  v14.8h, v8.8b, v10.8b      \n"
+                    "smlal  v15.8h, v8.8b, v11.8b      \n"
+                    "smlal  v16.8h, v8.8b, v12.8b      \n"	
+                    // r2
+                    "prfm   pldl1keep, [%7, #128]      \n"
+                    "ld2    {v4.8b, v5.8b}, [%7], #16  \n"
+                    "ld2    {v6.8b, v7.8b}, [%7]       \n"
+                    "ext    v8.8b, v4.8b, v6.8b, #1    \n"
+                    
+                    "dup    v9.8b, %16.b[6]            \n"
+                    "dup    v10.8b, %17.b[6]           \n"
+                    "dup    v11.8b, %18.b[6]           \n"
+                    "dup    v12.8b, %19.b[6]           \n"
+                    
+                    "smlal  v13.8h, v4.8b, v9.8b       \n"
+                    "smlal  v14.8h, v4.8b, v10.8b      \n"
+                    "smlal  v15.8h, v4.8b, v11.8b      \n"
+                    "smlal  v16.8h, v4.8b, v12.8b      \n"
+
+                    "dup    v9.8b, %16.b[7]            \n"
+                    "dup    v10.8b, %17.b[7]           \n"
+                    "dup    v11.8b, %18.b[7]           \n"
+                    "dup    v12.8b, %19.b[7]           \n"
+                    
+                    "smlal  v13.8h, v5.8b, v9.8b       \n"
+                    "smlal  v14.8h, v5.8b, v10.8b      \n"
+                    "smlal  v15.8h, v5.8b, v11.8b      \n"
+                    "smlal  v16.8h, v5.8b, v12.8b      \n"
+                    
+                    "dup    v9.8b, %16.b[8]            \n"
+                    "dup    v10.8b, %17.b[8]           \n"
+                    "dup    v11.8b, %18.b[8]           \n"
+                    "dup    v12.8b, %19.b[8]           \n"
+                    
+                    "smlal  v13.8h, v8.8b, v9.8b       \n"
+                    "smlal  v14.8h, v8.8b, v10.8b      \n"
+                    "smlal  v15.8h, v8.8b, v11.8b      \n"
+                    "smlal  v16.8h, v8.8b, v12.8b      \n"
+                    // sum0 - sum3
+                    "prfm   pldl1keep, [%1, #128]      \n"
+                    "prfm   pldl1keep, [%2, #128]      \n"
+                    "prfm   pldl1keep, [%3, #128]      \n"
+                    "prfm   pldl1keep, [%4, #128]      \n"
+                    "ld1    {v17.8h}, [%1]             \n"
+                    "ld1    {v19.8h}, [%2]             \n"
+                    "ld1    {v21.8h}, [%3]             \n"
+                    "ld1    {v23.8h}, [%4]             \n"
+
+                    "sqadd  v17.8h, v17.8h, v13.8h     \n"
+                    "sqadd  v19.8h, v19.8h, v14.8h     \n"
+                    "sqadd  v21.8h, v21.8h, v15.8h     \n"
+                    "sqadd  v23.8h, v23.8h, v16.8h     \n"
+                    "st1    {v17.8h}, [%1], #16		   \n"
+                    "st1    {v19.8h}, [%2], #16        \n"
+                    "st1    {v21.8h}, [%3], #16        \n"
+                    "st1    {v23.8h}, [%4], #16        \n"
+                    "subs   %w0, %w0, #1               \n"
+                    "bne    0b                         \n"
+                    : "=r"(nn),         //%0
+                      "=r"(outptr0),    //%1
+                      "=r"(outptr1),	//%2
+                      "=r"(outptr2),	//%3
+                      "=r"(outptr3),	//%4
+                      "=r"(r0),			//%5
+                      "=r"(r1),			//%6
+                      "=r"(r2)			//%7
+                    : "0"(nn),
+                      "1"(outptr0),
+                      "2"(outptr1),
+                      "3"(outptr2),
+                      "4"(outptr3),
+                      "5"(r0),
+                      "6"(r1),
+                      "7"(r2),
+                      "w"(_k0),			//%16
+                      "w"(_k1),			//%17
+                      "w"(_k2),			//%18
+                      "w"(_k3) 			//%19
+                    : "cc", "memory", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24"
+                );
+                }
+
+                for (; remain>0; remain--)
+                {
+                    short sum0 = 0;
+                    short sum1 = 0;
+                    short sum2 = 0;
+                    short sum3 = 0;
+                
+                    sum0 += (short)r0[0] * kernel0[0];
+                    sum0 += (short)r0[1] * kernel0[1];
+                    sum0 += (short)r0[2] * kernel0[2];
+                    sum0 += (short)r1[0] * kernel0[3];
+                    sum0 += (short)r1[1] * kernel0[4];
+                    sum0 += (short)r1[2] * kernel0[5];
+                    sum0 += (short)r2[0] * kernel0[6];
+                    sum0 += (short)r2[1] * kernel0[7];
+                    sum0 += (short)r2[2] * kernel0[8];
+
+                    sum1 += (short)r0[0] * kernel1[0];
+                    sum1 += (short)r0[1] * kernel1[1];
+                    sum1 += (short)r0[2] * kernel1[2];
+                    sum1 += (short)r1[0] * kernel1[3];
+                    sum1 += (short)r1[1] * kernel1[4];
+                    sum1 += (short)r1[2] * kernel1[5];
+                    sum1 += (short)r2[0] * kernel1[6];
+                    sum1 += (short)r2[1] * kernel1[7];
+                    sum1 += (short)r2[2] * kernel1[8];
+
+                    sum2 += (short)r0[0] * kernel2[0];
+                    sum2 += (short)r0[1] * kernel2[1];
+                    sum2 += (short)r0[2] * kernel2[2];
+                    sum2 += (short)r1[0] * kernel2[3];
+                    sum2 += (short)r1[1] * kernel2[4];
+                    sum2 += (short)r1[2] * kernel2[5];
+                    sum2 += (short)r2[0] * kernel2[6];
+                    sum2 += (short)r2[1] * kernel2[7];
+                    sum2 += (short)r2[2] * kernel2[8];
+
+                    sum3 += (short)r0[0] * kernel3[0];
+                    sum3 += (short)r0[1] * kernel3[1];
+                    sum3 += (short)r0[2] * kernel3[2];
+                    sum3 += (short)r1[0] * kernel3[3];
+                    sum3 += (short)r1[1] * kernel3[4];
+                    sum3 += (short)r1[2] * kernel3[5];
+                    sum3 += (short)r2[0] * kernel3[6];
+                    sum3 += (short)r2[1] * kernel3[7];
+                    sum3 += (short)r2[2] * kernel3[8];
+
+                    *outptr0 += sum0;
+                    *outptr1 += sum1;
+                    *outptr2 += sum2;
+                    *outptr3 += sum3;
+
+                    r0 += 2;
+                    r1 += 2;
+                    r2 += 2;
+                    outptr0++;
+                    outptr1++;
+                    outptr2++;
+                    outptr3++;
+                }       
+
+                r0 += tailstep;
+                r1 += tailstep;
+                r2 += tailstep;
+            }
+
+            kernel0 += 9;
+            kernel1 += 9;
+            kernel2 += 9;
+            kernel3 += 9;
+        }
+    }
+
+    #pragma omp parallel for
+    for (int p=remain_outch_start; p<outch; p++)
+    {
+        Mat out0 = top_blob.channel(p);
+
+        out0.fill(0.f);
+
+        const signed char* kernel0 = (const signed char*)kernel + p * inch * 9;
+
+        for (int q=0; q<inch; q++)
+        {
+            short* outptr0 = out0;
+
+            const signed char* img0 = bottom_blob.channel(q);
+
+            const signed char* r0 = img0;
+            const signed char* r1 = img0 + w;
+            const signed char* r2 = img0 + w * 2;
+
+            const signed char* k00 = kernel0;
+            const signed char* k01 = kernel0 + 3;
+            const signed char* k02 = kernel0 + 6;
+
+            int i = 0;
+
+            int8x8_t _k0 = vdup_n_s8(kernel[0]);
+            int8x8_t _k1 = vdup_n_s8(kernel[1]);
+            int8x8_t _k2 = vdup_n_s8(kernel[2]);
+            int8x8_t _k3 = vdup_n_s8(kernel[3]);
+            int8x8_t _k4 = vdup_n_s8(kernel[4]);
+            int8x8_t _k5 = vdup_n_s8(kernel[5]);
+            int8x8_t _k6 = vdup_n_s8(kernel[6]);
+            int8x8_t _k7 = vdup_n_s8(kernel[7]);
+            int8x8_t _k8 = vdup_n_s8(kernel[8]);
+
+            for (; i < outh; i++)
+            {           
+                int nn = outw >> 3;
+                int remain = outw & 7;
+
+                for (; nn >0; nn--)
+                {
+                    int8x8x2_t _r0 = vld2_s8(r0);
+                    int8x8x2_t _r0n = vld2_s8(r0+16);
+                    int8x8_t _r00 = _r0.val[0];
+                    int8x8_t _r01 = _r0.val[1];
+                    int8x8_t _r02 = vext_s8(_r00, _r0n.val[0], 1);
+
+                    int16x8_t _sum = vmull_s8(_r00, _k0);
+                    _sum = vmlal_s8(_sum, _r01, _k1);
+                    _sum = vmlal_s8(_sum, _r02, _k2);
+
+                    int8x8x2_t _r1 = vld2_s8(r1);
+                    int8x8x2_t _r1n = vld2_s8(r1+16);
+                    int8x8_t _r10 = _r1.val[0];
+                    int8x8_t _r11 = _r1.val[1];
+                    int8x8_t _r12 = vext_s8(_r10, _r1n.val[0], 1);
+                    _sum = vmlal_s8(_sum, _r10, _k3);
+                    _sum = vmlal_s8(_sum, _r11, _k4);
+                    _sum = vmlal_s8(_sum, _r12, _k5);
+
+                    int8x8x2_t _r2 = vld2_s8(r2);
+                    int8x8x2_t _r2n = vld2_s8(r2+16);
+                    int8x8_t _r20 = _r2.val[0];
+                    int8x8_t _r21 = _r2.val[1];
+                    int8x8_t _r22 = vext_s8(_r20, _r2n.val[0], 1);
+                    _sum = vmlal_s8(_sum, _r20, _k6);
+                    _sum = vmlal_s8(_sum, _r21, _k7);
+                    _sum = vmlal_s8(_sum, _r22, _k8);
+
+                    int16x8_t sum0_s16 = vld1q_s16(outptr0);
+
+                    sum0_s16 = vqaddq_s16(sum0_s16, _sum);
+
+                    vst1q_s16(outptr0, sum0_s16);
+
+                    r0 += 16;
+                    r1 += 16;
+                    r2 += 16;
+                    outptr0 += 8;
+                }
+
+                for (; remain>0; remain--)
+                {
+                    short sum0 = 0;
+                    
+                    sum0 += (short)r0[0] * kernel0[0];
+                    sum0 += (short)r0[1] * kernel0[1];
+                    sum0 += (short)r0[2] * kernel0[2];
+                    sum0 += (short)r1[0] * kernel0[3];
+                    sum0 += (short)r1[1] * kernel0[4];
+                    sum0 += (short)r1[2] * kernel0[5];
+                    sum0 += (short)r2[0] * kernel0[6];
+                    sum0 += (short)r2[1] * kernel0[7];
+                    sum0 += (short)r2[2] * kernel0[8];
+                    
+                    *outptr0 += sum0;
+
+                    r0 += 2;
+                    r1 += 2;
+                    r2 += 2;
+                    outptr0++;
+                }
+
+                r0 += tailstep;
+                r1 += tailstep;
+                r2 += tailstep;
+            }
+
+            kernel0 += 9;
+        }       
+    }   
 }
 
 static void conv3x3s1_int8_neon(const Mat &bottom_blob, Mat &top_blob, const Mat &_kernel, const Option& opt)

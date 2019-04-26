@@ -94,8 +94,6 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
 
         Mat bottom_top_blob_tm = bottom_top_blob.clone(opt.workspace_allocator);
 
-        float scale_tm = scale * 2.0;
-
         if (bias_term)
         {
             //#pragma omp parallel for num_threads(opt.num_threads)
@@ -145,7 +143,7 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
                     : "0"(nn),
                       "1"(intptr),
                       "2"(ptr),
-                      "r"(scale_tm),       // %6
+                      "r"(scale),       // %6
                       "r"(bias)         // %7
                     : "cc", "memory", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"
                 );
@@ -192,7 +190,7 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
 #endif // __ARM_NEON
                 for (; remain>0; remain--)
                 {
-                    *ptr = (float)(*intptr) * scale_tm + bias;
+                    *ptr = (float)(*intptr) * scale + bias;
 
                     intptr++;
                     ptr++;
@@ -284,7 +282,7 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
 #endif // __ARM_NEON
                 for (; remain>0; remain--)
                 {
-                    *ptr = (float)(*intptr) * scale_tm;
+                    *ptr = (float)(*intptr) * scale;
 
                     intptr++;
                     ptr++;
