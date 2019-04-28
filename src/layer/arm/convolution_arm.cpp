@@ -545,6 +545,9 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     // int8
     if (use_int8_inference)
     {
+#if DEBUG_FEATURE
+        extract_feature_in_s8(0, this->name.c_str(), bottom_blob_bordered);
+#endif 
         if (use_int8_requantize == true)
         {
             Mat top_blob_tm;
@@ -657,7 +660,11 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
             }
 #if DEBUG_TIME 
             start = get_current_time();
-#endif             
+#endif            
+
+#if DEBUG_FEATURE
+            extract_feature_blob_s16("D_Out_S16", this->name.c_str(), top_blob);
+#endif   
             // dequantize, reverse scale inplace
             #pragma omp parallel for num_threads(opt.num_threads)
             for (int p=0; p<num_output; p++)
@@ -674,10 +681,6 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
             printf("dequantize : %8.3f ms\n", end - start);
 #endif             
         } 
-
-#if DEBUG_FEATURE
-        extract_feature_in_s8(0, this->name.c_str(), bottom_blob_bordered);
-#endif 
 
         return 0;
     }

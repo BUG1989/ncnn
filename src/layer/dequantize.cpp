@@ -131,12 +131,14 @@ int Dequantize::forward_inplace(Mat& bottom_top_blob, const Option& opt) const
         int channels = bottom_top_blob.c;
         int size = w * h;
 
+        Mat bottom_top_blob_tm = bottom_top_blob.clone(opt.workspace_allocator);
+
         if (bias_term)
         {
-            #pragma omp parallel for num_threads(opt.num_threads)
+            // #pragma omp parallel for num_threads(opt.num_threads)
             for (int q=0; q<channels; q++)
             {
-                const int* intptr = bottom_top_blob.channel(q);
+                const short* intptr = bottom_top_blob_tm.channel(q);
                 float* ptr = bottom_top_blob.channel(q);
 
                 float bias = bias_data_size > 1 ? bias_data[q] : bias_data[0];
@@ -149,10 +151,10 @@ int Dequantize::forward_inplace(Mat& bottom_top_blob, const Option& opt) const
         }
         else
         {
-            #pragma omp parallel for num_threads(opt.num_threads)
+            // #pragma omp parallel for num_threads(opt.num_threads)
             for (int q=0; q<channels; q++)
             {
-                const int* intptr = bottom_top_blob.channel(q);
+                const short* intptr = bottom_top_blob_tm.channel(q);
                 float* ptr = bottom_top_blob.channel(q);
 
                 for (int i=0; i<size; i++)

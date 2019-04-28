@@ -244,18 +244,17 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
             0,          
             0,
             0
-        }  // kernel_size = 7        
+        }  // kernel_size = 7
     };
 
-    typedef void (*conv_int8_dequant_func)(const Mat&, Mat&, const Mat&, const Mat&, std::vector<float>, const Option&);
-    typedef void (*conv_int8_requant_func)(const Mat&, Mat&, const Mat&, const Mat&, std::vector<float>, const Option&);
+    typedef void (*conv_int8_e2e_func)(const Mat&, Mat&, const Mat&, const Option&);
 
     // kernel_size x stride
-    conv_int8_dequant_func conv_int8_dequant_func_table[7][4] =
+    conv_int8_e2e_func conv_int8_e2e_func_table[7][4] =
     {
         {
-            conv1x1s1_int8_dequant_sse,
-            conv1x1s2_int8_dequant_sse,
+            conv1x1s1_int8_e2e_sse,
+            conv1x1s2_int8_e2e_sse,
             0,
             0
         }, // kernel_size = 1
@@ -266,8 +265,8 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
             0
         }, // kernel_size = 2
         {
-            conv3x3s1_int8_dequant_sse,
-            conv3x3s2_int8_dequant_sse,
+            conv3x3s1_int8_e2e_sse,
+            conv3x3s2_int8_e2e_sse,
             0,
             0,
         }, // kernel_size = 3
@@ -278,8 +277,8 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
             0
         }, // kernel_size = 4
         {        
-            conv5x5s1_int8_dequant_sse,
-            conv5x5s2_int8_dequant_sse,    
+            conv5x5s1_int8_e2e_sse,
+            conv5x5s2_int8_e2e_sse,
             0,
             0
         }, // kernel_size = 5
@@ -290,70 +289,20 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
             0
         }, // kernel_size = 6
         {
-            conv7x7s1_int8_dequant_sse,          
-            conv7x7s2_int8_dequant_sse, 
+            conv7x7s1_int8_e2e_sse,
+            conv7x7s2_int8_e2e_sse,
             0,
             0
         }  // kernel_size = 7
     };
 
-    conv_int8_requant_func conv_int8_requant_func_table[7][4] =
-    {
-        {
-            conv1x1s1_int8_requant_sse,
-            conv1x1s2_int8_requant_sse,
-            0,
-            0
-        }, // kernel_size = 1
-        {
-            0,
-            0,
-            0,
-            0
-        }, // kernel_size = 2
-        {
-            conv3x3s1_int8_requant_sse,
-            conv3x3s2_int8_requant_sse,
-            0,
-            0,
-        }, // kernel_size = 3
-        {
-            0,
-            0,
-            0,
-            0
-        }, // kernel_size = 4
-        {        
-            conv5x5s1_int8_requant_sse,
-            conv5x5s2_int8_requant_sse,    
-            0,
-            0
-        }, // kernel_size = 5
-        {
-            0,
-            0,
-            0,
-            0
-        }, // kernel_size = 6
-        {
-            conv7x7s1_int8_requant_sse,          
-            conv7x7s2_int8_requant_sse, 
-            0,
-            0
-        }  // kernel_size = 7
-    };    
-
     conv_func conv = 0;
-    conv_int8_dequant_func conv_int8_dequant = 0;
-    conv_int8_requant_func conv_int8_requant = 0;
+    conv_int8_e2e_func conv_int8_e2e = 0;
 
     if (use_int8_inference)
     {
-        if (use_int8_requantize)
-            conv_int8_requant = conv_int8_requant_func_table[kernel_size-1][stride-1];
-        else
-            conv_int8_dequant = conv_int8_dequant_func_table[kernel_size-1][stride-1];  
-        if ((!conv_int8_requant) && (!conv_int8_dequant))
+        conv_int8_e2e = conv_int8_e2e_func_table[kernel_size-1][stride-1];
+        if (!conv_int8_e2e)
         {
             return Convolution::forward(bottom_blob, top_blob, opt);
         }
@@ -430,8 +379,11 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     // int8
     if (use_int8_inference)
     {
+#if DEBUG_FEATURE
+        extract_feature_in_s8(0, this->name.c_str(), bottom_blob_bordered);
+#endif 
         if (use_int8_requantize == true)
-        {
+        {           
             Mat top_blob_tm;
             top_blob_tm.create(outw, outh, num_output, (size_t)4u, opt.workspace_allocator);
             if (top_blob_tm.empty())
@@ -444,23 +396,29 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
             if (use_winograd3x3)
             {
                 // conv3x3s1_winograd23_int8_sse(bottom_blob_bordered, top_blob_tm, weight_3x3_winograd23_data, opt);
-                conv3x3s1_winograd43_int8_sse(bottom_blob_bordered, top_blob_tm, weight_3x3_winograd23_data, opt);
-
-                // requantize, reverse scale inplace
-                #pragma omp parallel for num_threads(opt.num_threads)
-                for (int p=0; p<num_output; p++)
-                {
-                    ncnn::Option opt_g = opt;
-                    opt_g.num_threads = 1;
-                    opt_g.blob_allocator = top_blob.allocator;
-
-                    Mat top_blob_tm_g = top_blob_tm.channel_range(p, 1);
-                    Mat top_blob_g = top_blob.channel_range(p, 1);
-                    requantize_ops[p]->forward(top_blob_tm_g, top_blob_g, opt_g);
-                }
+                // conv3x3s1_winograd43_int8_sse(bottom_blob_bordered, top_blob_tm, weight_3x3_winograd23_data, opt);
+                conv3x3s1_winograd43_requant_int8_sse(bottom_blob_bordered, top_blob, weight_3x3_winograd23_data, bias_data, requantize_scales, opt);
+                return 0;
             }
             else
-                conv_int8_requant(bottom_blob_bordered, top_blob, weight_data, bias_data, requantize_scales, opt);                                                    
+                conv_int8_e2e(bottom_blob_bordered, top_blob_tm, weight_data, opt);
+
+#if DEBUG_FEATURE
+            extract_feature_blob_s16("D_Out_S16", this->name.c_str(), top_blob_tm);
+#endif   
+
+            // requantize, reverse scale inplace
+            #pragma omp parallel for num_threads(opt.num_threads)
+            for (int p=0; p<num_output; p++)
+            {
+                ncnn::Option opt_g = opt;
+                opt_g.num_threads = 1;
+                opt_g.blob_allocator = top_blob.allocator;
+
+                Mat top_blob_tm_g = top_blob_tm.channel_range(p, 1);
+                Mat top_blob_g = top_blob.channel_range(p, 1);
+                requantize_ops[p]->forward(top_blob_tm_g, top_blob_g, opt_g);
+            }                
         }
         else
         {
@@ -471,28 +429,30 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
             if (use_winograd3x3)
             {
                 // conv3x3s1_winograd23_int8_sse(bottom_blob_bordered, top_blob, weight_3x3_winograd23_data, opt);
-                conv3x3s1_winograd43_int8_sse(bottom_blob_bordered, top_blob, weight_3x3_winograd23_data, opt);
-
-                // dequantize, reverse scale inplace
-                #pragma omp parallel for num_threads(opt.num_threads)
-                for (int p=0; p<num_output; p++)
-                {
-                    ncnn::Option opt_g = opt;
-                    opt_g.num_threads = 1;
-                    opt_g.blob_allocator = top_blob.allocator;
-
-                    Mat top_blob_g = top_blob.channel_range(p, 1);
-                    dequantize_ops[p]->forward_inplace(top_blob_g, opt_g);
-                }
+                // conv3x3s1_winograd43_int8_sse(bottom_blob_bordered, top_blob, weight_3x3_winograd23_data, opt);
+                conv3x3s1_winograd43_dequant_int8_sse(bottom_blob_bordered, top_blob, weight_3x3_winograd23_data, bias_data, dequantize_scales, opt);
+                return 0;
             }
             else
-                conv_int8_dequant(bottom_blob_bordered, top_blob, weight_data, bias_data, dequantize_scales, opt);     
-        }
+                conv_int8_e2e(bottom_blob_bordered, top_blob, weight_data, opt);
 
 #if DEBUG_FEATURE
-    extract_feature_in_s8(0, this->name.c_str(), bottom_blob_bordered);
-#endif        
-    
+            extract_feature_blob_s16("D_Out_S16", this->name.c_str(), top_blob);
+#endif   
+
+            // dequantize, reverse scale inplace
+            #pragma omp parallel for num_threads(opt.num_threads)
+            for (int p=0; p<num_output; p++)
+            {
+                ncnn::Option opt_g = opt;
+                opt_g.num_threads = 1;
+                opt_g.blob_allocator = top_blob.allocator;
+
+                Mat top_blob_g = top_blob.channel_range(p, 1);
+                dequantize_ops[p]->forward_inplace(top_blob_g, opt_g);
+            }                
+        }
+
         return 0;
     }
 
