@@ -380,9 +380,16 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     int channels = bottom_blob.c;
     size_t elemsize = bottom_blob.elemsize;
 
+#if DEBUG_TIME  
+    double start, end;
+#endif     
+
     Mat bottom_blob_unbordered = bottom_blob;
     if (use_int8_inference && elemsize != 1)
     {
+#if DEBUG_TIME         
+        start = get_current_time();
+#endif              
         Mat bottom_blob_int8;
         bottom_blob_int8.create(w, h, channels, (size_t)1u, opt.workspace_allocator);
         if (bottom_blob_int8.empty())
@@ -396,16 +403,26 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
             quantize->forward(bottom_blob, bottom_blob_int8, opt_g);
         }
 
-        bottom_blob_unbordered = bottom_blob_int8;             
+        bottom_blob_unbordered = bottom_blob_int8;       
+#if DEBUG_TIME 
+        end = get_current_time();
+        printf("quantize   : %8.3f ms\n", end - start);
+#endif               
     }
 
     Mat bottom_blob_bordered = bottom_blob_unbordered;
     if (pad_w > 0 || pad_h > 0)
     {
+#if DEBUG_TIME         
+        start = get_current_time();
+#endif             
         copy_make_border(bottom_blob_unbordered, bottom_blob_bordered, pad_h, pad_h, pad_w, pad_w, BORDER_CONSTANT, 0.f, opt.workspace_allocator, opt.num_threads);
         if (bottom_blob_bordered.empty())
             return -100;
-
+#if DEBUG_TIME 
+        end = get_current_time();
+        printf("pad        : %8.3f ms\n", end - start);             
+#endif             
         w = bottom_blob_bordered.w;
         h = bottom_blob_bordered.h;
     }
@@ -432,6 +449,9 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     {
         if (use_int8_requantize == true)
         {
+#if DEBUG_TIME         
+            start = get_current_time();
+#endif                  
             Mat top_blob_tm;
             top_blob_tm.create(outw, outh, num_output, (size_t)4u, opt.workspace_allocator);
             if (top_blob_tm.empty())
@@ -443,9 +463,9 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
 
             if (use_sgemm1x1)
             {              
-                conv1x1s1_sgemm_int8_requant_neon(bottom_blob_bordered, top_blob, weight_1x1s1_sgemm_int8_data, bias_data, requantize_scales, opt);
-                
-                return 0;
+                // conv1x1s1_sgemm_int8_requant_neon(bottom_blob_bordered, top_blob, weight_1x1s1_sgemm_int8_data, bias_data, requantize_scales, opt);         
+                // return 0;
+                conv1x1s1_sgemm_int8_neon(bottom_blob_bordered, top_blob_tm, weight_1x1s1_sgemm_int8_data, opt);
             }
             else if (use_winograd3x3)
             {
@@ -460,7 +480,11 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
             {
                 conv_int8(bottom_blob_bordered, top_blob_tm, weight_sgemm_int8_data, opt);     
             }
-
+#if DEBUG_TIME
+            end = get_current_time();
+            printf("conv       : %8.3f ms\n", end - start);
+            start = get_current_time();
+#endif                   
             // requantize, reverse scale inplace
             #pragma omp parallel for num_threads(opt.num_threads)
             for (int p=0; p<num_output; p++)
@@ -472,14 +496,23 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
                 Mat top_blob_tm_g = top_blob_tm.channel_range(p, 1);
                 Mat top_blob_g = top_blob.channel_range(p, 1);
                 requantize_ops[p]->forward(top_blob_tm_g, top_blob_g, opt_g);
-            }                     
+            }
+#if DEBUG_TIME 
+            end = get_current_time();
+            printf("requantize : %8.3f ms\n", end - start);
+#endif             
+#if DEBUG_FEATURE
+            extract_feature_blob_s16("D_Out_S16", this->name.c_str(), top_blob_tm);
+#endif                                 
         }
         else
         {
             top_blob.create(outw, outh, num_output, (size_t)4u, opt.blob_allocator);
             if (top_blob.empty())
                 return -100; 
-
+#if DEBUG_TIME                 
+            start = get_current_time();
+#endif     
             if (use_sgemm1x1)
             {
                 conv1x1s1_sgemm_int8_neon(bottom_blob_bordered, top_blob, weight_1x1s1_sgemm_int8_data, opt);
@@ -489,6 +522,13 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
                 // conv3x3s1_winograd23_int8_neon(bottom_blob_bordered, top_blob, weight_3x3_winograd23_int8_data, opt);
                 // conv3x3s1_winograd43_int8_neon(bottom_blob_bordered, top_blob, weight_3x3_winograd23_int8_data, opt);
                 conv3x3s1_winograd43_dequant_int8_neon(bottom_blob_bordered, top_blob, weight_3x3_winograd23_int8_data, bias_data, dequantize_scales, opt);
+#if DEBUG_TIME                 
+                end = get_current_time();
+                printf("conv       : %8.3f ms\n", end - start);
+#endif                    
+#if DEBUG_FEATURE
+                extract_feature_in_s8(0, this->name.c_str(), bottom_blob_bordered);
+#endif                    
                 return 0;
             }
             else if (kernel_w == 3 && kernel_h == 3 && dilation_w == 1 && dilation_h == 1 && stride_w == 2 && stride_h == 2)
@@ -498,8 +538,12 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
             else
             {
                 conv_int8(bottom_blob_bordered, top_blob, weight_sgemm_int8_data, opt);
-            }        
-
+            }      
+#if DEBUG_TIME                 
+            end = get_current_time();
+            printf("conv       : %8.3f ms\n", end - start);
+            start = get_current_time();
+#endif                    
             // dequantize, reverse scale inplace
             #pragma omp parallel for num_threads(opt.num_threads)
             for (int p=0; p<num_output; p++)
@@ -511,8 +555,14 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
                 Mat top_blob_g = top_blob.channel_range(p, 1);
                 dequantize_ops[p]->forward_inplace(top_blob_g, opt_g);
             }          
+#if DEBUG_TIME 
+            end = get_current_time();
+            printf("dequantize : %8.3f ms\n", end - start);
+#endif                       
         } 
-
+#if DEBUG_FEATURE
+        extract_feature_in_s8(0, this->name.c_str(), bottom_blob_bordered);
+#endif 
         return 0;
     }
 

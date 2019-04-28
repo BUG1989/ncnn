@@ -48,6 +48,9 @@ if(NCNN_OPENMP)
     endif()
 endif()
 
+#add_definitions(-DDEBUG_FEATURE)
+#add_definitions(-DDEBUG_TIME)
+
 if(NCNN_VULKAN)
     find_package(Vulkan REQUIRED)
     include_directories(${Vulkan_INCLUDE_DIR})
