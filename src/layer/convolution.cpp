@@ -169,10 +169,7 @@ int Convolution::load_model(const ModelBin& mb)
 
             ncnn::ParamDict pd;
             float weight_data_int8_scale_value = weight_data_int8_scales[n];
-            // if (kernel_w == 3 && kernel_h == 3 && dilation_w == 1 && dilation_h == 1 && stride_w == 1 && stride_h == 1)
-            //     pd.set(0, weight_data_int8_scale_value / 4.f);// scale
-            // else
-                pd.set(0, weight_data_int8_scale_value);// scale
+            pd.set(0, weight_data_int8_scale_value);// scale
 
             op->load_param(pd);
 
@@ -211,10 +208,7 @@ int Convolution::load_model(const ModelBin& mb)
                 top_rescale = 0;
             else
             {
-                // if (kernel_w == 3 && kernel_h == 3 && dilation_w == 1 && dilation_h == 1 && stride_w == 1 && stride_h == 1)
-                //     top_rescale = 1.f / (bottom_blob_int8_scale * weight_data_int8_scales[n] / 4.f);
-                // else
-                    top_rescale = 1.f / (bottom_blob_int8_scale * weight_data_int8_scales[n]);
+                top_rescale = 1.f / (bottom_blob_int8_scale * weight_data_int8_scales[n]);
             }
                 
 
@@ -259,10 +253,7 @@ int Convolution::create_requantize_op(void)
         }
         else
         {
-            // if (kernel_w == 3 && kernel_h == 3 && dilation_w == 1 && dilation_h == 1 && stride_w == 1 && stride_h == 1)
-            //     scale_in = 1.f / (bottom_blob_int8_scale * weight_data_int8_scales[n] / 4.f);
-            // else
-                scale_in = 1.f / (bottom_blob_int8_scale * weight_data_int8_scales[n]);
+            scale_in = 1.f / (bottom_blob_int8_scale * weight_data_int8_scales[n]);
         }
 
         scale_out = top_blob_int8_scale;

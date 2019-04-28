@@ -6821,7 +6821,7 @@ static void conv3x3s2_packed_int8_e2e_neon(const Mat& bottom_blob, Mat& top_blob
 static void conv3x3s2_int8_e2e_neon(const Mat& bottom_blob, Mat& top_blob, const Mat& _kernel, const Option& opt)
 {
     int w = bottom_blob.w;
-    int h = bottom_blob.h;
+    // int h = bottom_blob.h;
     int inch = bottom_blob.c;
 
     int outw = top_blob.w;
@@ -6835,7 +6835,7 @@ static void conv3x3s2_int8_e2e_neon(const Mat& bottom_blob, Mat& top_blob, const
     int nn_outch = outch >> 2;
     int remain_outch_start = nn_outch << 2; 
 
-    #pragma omp parallel for
+    #pragma omp parallel for num_threads(opt.num_threads)
     for (int pp=0; pp < nn_outch; pp++)
     {
         int p = pp * 4;
@@ -7106,7 +7106,7 @@ static void conv3x3s2_int8_e2e_neon(const Mat& bottom_blob, Mat& top_blob, const
         }
     }
 
-    #pragma omp parallel for
+    #pragma omp parallel for num_threads(opt.num_threads)
     for (int p=remain_outch_start; p<outch; p++)
     {
         Mat out0 = top_blob.channel(p);
@@ -7125,9 +7125,9 @@ static void conv3x3s2_int8_e2e_neon(const Mat& bottom_blob, Mat& top_blob, const
             const signed char* r1 = img0 + w;
             const signed char* r2 = img0 + w * 2;
 
-            const signed char* k00 = kernel0;
-            const signed char* k01 = kernel0 + 3;
-            const signed char* k02 = kernel0 + 6;
+            // const signed char* k00 = kernel0;
+            // const signed char* k01 = kernel0 + 3;
+            // const signed char* k02 = kernel0 + 6;
 
             int i = 0;
 

@@ -116,7 +116,7 @@ static void conv1x1s1_sgemm_transform_kernel_int8_neon(const Mat& _kernel, Mat& 
 /*
  * Convolution 1x1 quantized with sgemm int8
  */
-static void conv1x1s1_sgemm_int8_neon(const Mat& bottom_blob, Mat& top_blob, const Mat& kernel, const Option& opt)
+static void conv1x1s1_sgemm_int8_e2e_neon(const Mat& bottom_blob, Mat& top_blob, const Mat& kernel, const Option& opt)
 {
     int w = bottom_blob.w;
     int h = bottom_blob.h;
@@ -3762,51 +3762,51 @@ static void conv1x1s1_int8_e2e_neon(const Mat &bottom_blob, Mat &top_blob, const
                 
                 "0:                                  \n"
 
-                "dup    v16.16b, v0.16b[0]           \n" // k00
-                "dup    v17.16b, v0.16b[1]           \n" // k01
-                "dup    v18.16b, v0.16b[2]           \n" // k02
-                "dup    v19.16b, v0.16b[3]           \n" // k03
-                "dup    v20.16b, v0.16b[4]           \n" // k04
-                "dup    v21.16b, v0.16b[5]           \n" // k05
-                "dup    v22.16b, v0.16b[6]           \n" // k06
-                "dup    v23.16b, v0.16b[7]           \n" // k07				
+                "dup    v16.16b, v0.b[0]           \n" // k00
+                "dup    v17.16b, v0.b[1]           \n" // k01
+                "dup    v18.16b, v0.b[2]           \n" // k02
+                "dup    v19.16b, v0.b[3]           \n" // k03
+                "dup    v20.16b, v0.b[4]           \n" // k04
+                "dup    v21.16b, v0.b[5]           \n" // k05
+                "dup    v22.16b, v0.b[6]           \n" // k06
+                "dup    v23.16b, v0.b[7]           \n" // k07				
 
                 "smull  v24.8h, v8.8b, v16.8b        \n" // r0 * k0
                 "smull2 v25.8h, v8.16b, v16.16b      \n" 
                 "smlal  v24.8h, v9.8b, v17.8b        \n" // r0 * k1
                 "smlal2  v25.8h, v9.16b, v17.16b     \n" 
-                "dup    v16.16b, v1.16b[0]           \n" // k00
+                "dup    v16.16b, v1.b[0]           \n" // k00
                 
                 "smlal  v24.8h, v10.8b, v18.8b       \n" // r0 * k2
                 "smlal2  v25.8h, v10.16b, v18.16b    \n"
-                "dup    v17.16b, v1.16b[1]           \n" // k01
+                "dup    v17.16b, v1.b[1]           \n" // k01
                 
                 "smlal  v24.8h, v11.8b, v19.8b       \n" // r0 * k3
                 "smlal2  v25.8h, v11.16b, v19.16b    \n"
-                "dup    v18.16b, v1.16b[2]           \n" // k02
+                "dup    v18.16b, v1.b[2]           \n" // k02
 
                 "prfm   pldl1keep, [%1, #128]        \n"
                 "ld1    {v26.8h, v27.8h}, [%1]       \n" // sum0  
                                     
                 "smlal  v24.8h, v12.8b, v20.8b       \n" // r0 * k4
                 "smlal2  v25.8h, v12.16b, v20.16b    \n"
-                "dup    v19.16b, v1.16b[3]           \n" // k03
+                "dup    v19.16b, v1.b[3]           \n" // k03
                 
                 "smlal  v24.8h, v13.8b, v21.8b       \n" // r0 * k5
                 "smlal2  v25.8h, v13.16b, v21.16b    \n"
-                "dup    v20.16b, v1.16b[4]           \n" // k04
+                "dup    v20.16b, v1.b[4]           \n" // k04
                 
                 "smlal  v24.8h, v14.8b, v22.8b       \n" // r0 * k6
                 "smlal2  v25.8h, v14.16b, v22.16b    \n"
-                "dup    v21.16b, v1.16b[5]           \n" // k05
+                "dup    v21.16b, v1.b[5]           \n" // k05
                 
                 "smlal  v24.8h, v15.8b, v23.8b       \n" // r0 * k7
                 "smlal2  v25.8h, v15.16b, v23.16b    \n"      
-                "dup    v22.16b, v1.16b[6]           \n" // k06
+                "dup    v22.16b, v1.b[6]           \n" // k06
 
                 "sqadd  v26.8h, v26.8h, v24.8h       \n"
                 "sqadd  v27.8h, v27.8h, v25.8h       \n"
-                "dup    v23.16b, v1.16b[7]           \n" // k07	
+                "dup    v23.16b, v1.b[7]           \n" // k07	
 
                 "st1    {v26.8h, v27.8h}, [%1], #32  \n" // sum0n
                 //###########################################
@@ -3814,38 +3814,38 @@ static void conv1x1s1_int8_e2e_neon(const Mat &bottom_blob, Mat &top_blob, const
                 "smull2 v25.8h, v8.16b, v16.16b      \n" 
                 "smlal  v24.8h, v9.8b, v17.8b        \n" // r0 * k1
                 "smlal2  v25.8h, v9.16b, v17.16b     \n"
-                "dup    v16.16b, v2.16b[0]           \n" // k00
+                "dup    v16.16b, v2.b[0]           \n" // k00
                 
                 "smlal  v24.8h, v10.8b, v18.8b       \n" // r0 * k2
                 "smlal2  v25.8h, v10.16b, v18.16b    \n"
-                "dup    v17.16b, v2.16b[1]           \n" // k01
+                "dup    v17.16b, v2.b[1]           \n" // k01
                 
                 "smlal  v24.8h, v11.8b, v19.8b       \n" // r0 * k3
                 "smlal2  v25.8h, v11.16b, v19.16b    \n"
-                "dup    v18.16b, v2.16b[2]           \n" // k02
+                "dup    v18.16b, v2.b[2]           \n" // k02
 
                 "prfm   pldl1keep, [%2, #128]        \n"
                 "ld1    {v26.8h, v27.8h}, [%2]       \n" // sum1
 
                 "smlal  v24.8h, v12.8b, v20.8b       \n" // r0 * k4
                 "smlal2  v25.8h, v12.16b, v20.16b    \n"
-                "dup    v19.16b, v2.16b[3]           \n" // k03
+                "dup    v19.16b, v2.b[3]           \n" // k03
                 
                 "smlal  v24.8h, v13.8b, v21.8b       \n" // r0 * k5
                 "smlal2  v25.8h, v13.16b, v21.16b    \n"
-                "dup    v20.16b, v2.16b[4]           \n" // k04
+                "dup    v20.16b, v2.b[4]           \n" // k04
                 
                 "smlal  v24.8h, v14.8b, v22.8b       \n" // r0 * k6
                 "smlal2  v25.8h, v14.16b, v22.16b    \n"  
-                "dup    v21.16b, v2.16b[5]           \n" // k05
+                "dup    v21.16b, v2.b[5]           \n" // k05
                 
                 "smlal  v24.8h, v15.8b, v23.8b       \n" // r0 * k7
                 "smlal2  v25.8h, v15.16b, v23.16b    \n"    
-                "dup    v22.16b, v2.16b[6]           \n" // k06  
+                "dup    v22.16b, v2.b[6]           \n" // k06  
                 
                 "sqadd  v26.8h, v26.8h, v24.8h       \n"
                 "sqadd  v27.8h, v27.8h, v25.8h       \n"
-                "dup    v23.16b, v2.16b[7]           \n" // k07
+                "dup    v23.16b, v2.b[7]           \n" // k07
 
                 "st1    {v26.8h, v27.8h}, [%2], #32  \n" // sum1n
                 //###########################################
@@ -3854,38 +3854,38 @@ static void conv1x1s1_int8_e2e_neon(const Mat &bottom_blob, Mat &top_blob, const
                 "smull2 v25.8h, v8.16b, v16.16b      \n" 
                 "smlal  v24.8h, v9.8b, v17.8b        \n" // r0 * k1
                 "smlal2  v25.8h, v9.16b, v17.16b     \n" 
-                "dup    v16.16b, v3.16b[0]           \n" // k00
+                "dup    v16.16b, v3.b[0]           \n" // k00
                 
                 "smlal  v24.8h, v10.8b, v18.8b       \n" // r0 * k2
                 "smlal2  v25.8h, v10.16b, v18.16b    \n"
-                "dup    v17.16b, v3.16b[1]           \n" // k01
+                "dup    v17.16b, v3.b[1]           \n" // k01
                 
                 "smlal  v24.8h, v11.8b, v19.8b       \n" // r0 * k3
                 "smlal2  v25.8h, v11.16b, v19.16b    \n"
-                "dup    v18.16b, v3.16b[2]           \n" // k02					
+                "dup    v18.16b, v3.b[2]           \n" // k02					
 
                 "prfm   pldl1keep, [%3, #128]        \n"
                 "ld1    {v26.8h, v27.8h}, [%3]       \n" // sum2
 
                 "smlal  v24.8h, v12.8b, v20.8b       \n" // r0 * k4
                 "smlal2  v25.8h, v12.16b, v20.16b    \n"
-                "dup    v19.16b, v3.16b[3]           \n" // k03
+                "dup    v19.16b, v3.b[3]           \n" // k03
                 
                 "smlal  v24.8h, v13.8b, v21.8b       \n" // r0 * k5
                 "smlal2  v25.8h, v13.16b, v21.16b    \n"
-                "dup    v20.16b, v3.16b[4]           \n" // k04
+                "dup    v20.16b, v3.b[4]           \n" // k04
                 
                 "smlal  v24.8h, v14.8b, v22.8b       \n" // r0 * k6
                 "smlal2  v25.8h, v14.16b, v22.16b    \n"  
-                "dup    v21.16b, v3.16b[5]           \n" // k05
+                "dup    v21.16b, v3.b[5]           \n" // k05
                 
                 "smlal  v24.8h, v15.8b, v23.8b       \n" // r0 * k7
                 "smlal2  v25.8h, v15.16b, v23.16b    \n"    
-                "dup    v22.16b, v3.16b[6]           \n" // k06  
+                "dup    v22.16b, v3.b[6]           \n" // k06  
                 
                 "sqadd  v26.8h, v26.8h, v24.8h       \n"
                 "sqadd  v27.8h, v27.8h, v25.8h       \n"
-                "dup    v23.16b, v3.16b[7]           \n" // k07
+                "dup    v23.16b, v3.b[7]           \n" // k07
 
                 "st1    {v26.8h, v27.8h}, [%3], #32  \n" // sum2n  					
                 //##########################################
@@ -3893,38 +3893,38 @@ static void conv1x1s1_int8_e2e_neon(const Mat &bottom_blob, Mat &top_blob, const
                 "smull2 v25.8h, v8.16b, v16.16b      \n" 
                 "smlal  v24.8h, v9.8b, v17.8b        \n" // r0 * k1
                 "smlal2  v25.8h, v9.16b, v17.16b     \n" 
-                "dup    v16.16b, v4.16b[0]           \n" // k00
+                "dup    v16.16b, v4.b[0]           \n" // k00
                 
                 "smlal  v24.8h, v10.8b, v18.8b       \n" // r0 * k2
                 "smlal2  v25.8h, v10.16b, v18.16b    \n"
-                "dup    v17.16b, v4.16b[1]            \n" // k01
+                "dup    v17.16b, v4.b[1]            \n" // k01
                 
                 "smlal  v24.8h, v11.8b, v19.8b       \n" // r0 * k3
                 "smlal2  v25.8h, v11.16b, v19.16b    \n"
-                "dup    v18.16b, v4.16b[2]           \n" // k02					
+                "dup    v18.16b, v4.b[2]           \n" // k02					
 
                 "prfm   pldl1keep, [%4, #128]        \n"
                 "ld1    {v26.8h, v27.8h}, [%4]       \n" // sum3
 
                 "smlal  v24.8h, v12.8b, v20.8b       \n" // r0 * k4
                 "smlal2  v25.8h, v12.16b, v20.16b    \n"
-                "dup    v19.16b, v4.16b[3]           \n" // k03
+                "dup    v19.16b, v4.b[3]           \n" // k03
                 
                 "smlal  v24.8h, v13.8b, v21.8b       \n" // r0 * k5
                 "smlal2  v25.8h, v13.16b, v21.16b    \n"
-                "dup    v20.16b, v4.16b[4]            \n" // k04
+                "dup    v20.16b, v4.b[4]            \n" // k04
                 
                 "smlal  v24.8h, v14.8b, v22.8b       \n" // r0 * k6
                 "smlal2  v25.8h, v14.16b, v22.16b    \n" 
-                "dup    v21.16b, v4.16b[5]           \n" // k05
+                "dup    v21.16b, v4.b[5]           \n" // k05
                 
                 "smlal  v24.8h, v15.8b, v23.8b       \n" // r0 * k7
                 "smlal2  v25.8h, v15.16b, v23.16b    \n"      
-                "dup    v22.16b, v4.16b[6]           \n" // k06
+                "dup    v22.16b, v4.b[6]           \n" // k06
                 
                 "sqadd  v26.8h, v26.8h, v24.8h       \n"
                 "sqadd  v27.8h, v27.8h, v25.8h       \n"
-                "dup    v23.16b, v4.16b[7]           \n" // k07	
+                "dup    v23.16b, v4.b[7]           \n" // k07	
 
                 "st1    {v26.8h, v27.8h}, [%4], #32  \n" // sum3n
                 //##########################################	
@@ -3932,38 +3932,38 @@ static void conv1x1s1_int8_e2e_neon(const Mat &bottom_blob, Mat &top_blob, const
                 "smull2 v25.8h, v8.16b, v16.16b      \n" 
                 "smlal  v24.8h, v9.8b, v17.8b        \n" // r0 * k1
                 "smlal2  v25.8h, v9.16b, v17.16b     \n" 
-                "dup    v16.16b, v5.16b[0]           \n" // k00
+                "dup    v16.16b, v5.b[0]           \n" // k00
                 
                 "smlal  v24.8h, v10.8b, v18.8b       \n" // r0 * k2
                 "smlal2  v25.8h, v10.16b, v18.16b    \n"
-                "dup    v17.16b, v5.16b[1]           \n" // k01
+                "dup    v17.16b, v5.b[1]           \n" // k01
                 
                 "smlal  v24.8h, v11.8b, v19.8b       \n" // r0 * k3
                 "smlal2  v25.8h, v11.16b, v19.16b    \n"
-                "dup    v18.16b, v5.16b[2]           \n" // k02
+                "dup    v18.16b, v5.b[2]           \n" // k02
 
                 "prfm   pldl1keep, [%5, #128]        \n"
                 "ld1    {v26.8h, v27.8h}, [%5]       \n" // sum4
 
                 "smlal  v24.8h, v12.8b, v20.8b       \n" // r0 * k4
                 "smlal2  v25.8h, v12.16b, v20.16b    \n"
-                "dup    v19.16b, v5.16b[3]           \n" // k03
+                "dup    v19.16b, v5.b[3]           \n" // k03
                 
                 "smlal  v24.8h, v13.8b, v21.8b       \n" // r0 * k5
                 "smlal2  v25.8h, v13.16b, v21.16b    \n"
-                "dup    v20.16b, v5.16b[4]           \n" // k04
+                "dup    v20.16b, v5.b[4]           \n" // k04
                 
                 "smlal  v24.8h, v14.8b, v22.8b       \n" // r0 * k6
                 "smlal2  v25.8h, v14.16b, v22.16b    \n" 
-                "dup    v21.16b, v5.16b[5]           \n" // k05
+                "dup    v21.16b, v5.b[5]           \n" // k05
                 
                 "smlal  v24.8h, v15.8b, v23.8b       \n" // r0 * k7
                 "smlal2  v25.8h, v15.16b, v23.16b    \n"      
-                "dup    v22.16b, v5.16b[6]           \n" // k06
+                "dup    v22.16b, v5.b[6]           \n" // k06
                 
                 "sqadd  v26.8h, v26.8h, v24.8h       \n"
                 "sqadd  v27.8h, v27.8h, v25.8h       \n"
-                "dup    v23.16b, v5.16b[7]           \n" // k07
+                "dup    v23.16b, v5.b[7]           \n" // k07
 
                 "st1    {v26.8h, v27.8h}, [%5], #32  \n" // sum4n
                 //##########################################	
@@ -3971,38 +3971,38 @@ static void conv1x1s1_int8_e2e_neon(const Mat &bottom_blob, Mat &top_blob, const
                 "smull2 v25.8h, v8.16b, v16.16b      \n" 
                 "smlal  v24.8h, v9.8b, v17.8b        \n" // r0 * k1
                 "smlal2  v25.8h, v9.16b, v17.16b     \n" 
-                "dup    v16.16b, v6.16b[0]           \n" // k00
+                "dup    v16.16b, v6.b[0]           \n" // k00
                 
                 "smlal  v24.8h, v10.8b, v18.8b       \n" // r0 * k2
                 "smlal2  v25.8h, v10.16b, v18.16b    \n"
-                "dup    v17.16b, v6.16b[1]           \n" // k01
+                "dup    v17.16b, v6.b[1]           \n" // k01
                 
                 "smlal  v24.8h, v11.8b, v19.8b       \n" // r0 * k3
                 "smlal2  v25.8h, v11.16b, v19.16b    \n"
-                "dup    v18.16b, v6.16b[2]           \n" // k02
+                "dup    v18.16b, v6.b[2]           \n" // k02
 
                 "prfm   pldl1keep, [%6, #128]        \n"
                 "ld1    {v26.8h, v27.8h}, [%6]       \n" // sum5                
                 
                 "smlal  v24.8h, v12.8b, v20.8b       \n" // r0 * k4
                 "smlal2  v25.8h, v12.16b, v20.16b    \n"
-                "dup    v19.16b, v6.16b[3]           \n" // k03
+                "dup    v19.16b, v6.b[3]           \n" // k03
                 
                 "smlal  v24.8h, v13.8b, v21.8b       \n" // r0 * k5
                 "smlal2  v25.8h, v13.16b, v21.16b    \n"
-                "dup    v20.16b, v6.16b[4]           \n" // k04
+                "dup    v20.16b, v6.b[4]           \n" // k04
                 
                 "smlal  v24.8h, v14.8b, v22.8b       \n" // r0 * k6
                 "smlal2  v25.8h, v14.16b, v22.16b    \n"  
-                "dup    v21.16b, v6.16b[5]           \n" // k05
+                "dup    v21.16b, v6.b[5]           \n" // k05
                 
                 "smlal  v24.8h, v15.8b, v23.8b       \n" // r0 * k7
                 "smlal2  v25.8h, v15.16b, v23.16b    \n"      
-                "dup    v22.16b, v6.16b[6]           \n" // k06
+                "dup    v22.16b, v6.b[6]           \n" // k06
                 
                 "sqadd  v26.8h, v26.8h, v24.8h       \n"
                 "sqadd  v27.8h, v27.8h, v25.8h       \n"
-                "dup    v23.16b, v6.16b[7]           \n" // k07
+                "dup    v23.16b, v6.b[7]           \n" // k07
 
                 "st1    {v26.8h, v27.8h}, [%6], #32  \n" // sum5n
                 //##########################################
@@ -4010,38 +4010,38 @@ static void conv1x1s1_int8_e2e_neon(const Mat &bottom_blob, Mat &top_blob, const
                 "smull2 v25.8h, v8.16b, v16.16b      \n" 
                 "smlal  v24.8h, v9.8b, v17.8b        \n" // r0 * k1
                 "smlal2  v25.8h, v9.16b, v17.16b     \n" 
-                "dup    v16.16b, v7.16b[0]           \n" // k00
+                "dup    v16.16b, v7.b[0]           \n" // k00
                 
                 "smlal  v24.8h, v10.8b, v18.8b       \n" // r0 * k2
                 "smlal2  v25.8h, v10.16b, v18.16b    \n"
-                "dup    v17.16b, v7.16b[1]           \n" // k01
+                "dup    v17.16b, v7.b[1]           \n" // k01
                 
                 "smlal  v24.8h, v11.8b, v19.8b       \n" // r0 * k3
                 "smlal2  v25.8h, v11.16b, v19.16b    \n"
-                "dup    v18.16b, v7.16b[2]           \n" // k02					
+                "dup    v18.16b, v7.b[2]           \n" // k02					
 
                 "prfm   pldl1keep, [%7, #128]        \n"
                 "ld1    {v26.8h, v27.8h}, [%7]       \n" // sum6
 
                 "smlal  v24.8h, v12.8b, v20.8b       \n" // r0 * k4
                 "smlal2  v25.8h, v12.16b, v20.16b    \n"
-                "dup    v19.16b, v7.16b[3]           \n" // k03
+                "dup    v19.16b, v7.b[3]           \n" // k03
                 
                 "smlal  v24.8h, v13.8b, v21.8b       \n" // r0 * k5
                 "smlal2  v25.8h, v13.16b, v21.16b    \n"
-                "dup    v20.16b, v7.16b[4]           \n" // k04
+                "dup    v20.16b, v7.b[4]           \n" // k04
                 
                 "smlal  v24.8h, v14.8b, v22.8b       \n" // r0 * k6
                 "smlal2  v25.8h, v14.16b, v22.16b    \n"
-                "dup    v21.16b, v7.16b[5]           \n" // k05
+                "dup    v21.16b, v7.b[5]           \n" // k05
                 
                 "smlal  v24.8h, v15.8b, v23.8b       \n" // r0 * k7
                 "smlal2  v25.8h, v15.16b, v23.16b    \n"   
-                "dup    v22.16b, v7.16b[6]           \n" // k06   
+                "dup    v22.16b, v7.b[6]           \n" // k06   
                 
                 "sqadd  v26.8h, v26.8h, v24.8h       \n"
                 "sqadd  v27.8h, v27.8h, v25.8h       \n"
-                "dup    v23.16b, v7.16b[7]           \n" // k07
+                "dup    v23.16b, v7.b[7]           \n" // k07
 
                 "st1    {v26.8h, v27.8h}, [%7], #32  \n" // sum6n
                 //##########################################		

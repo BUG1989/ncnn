@@ -567,7 +567,7 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
                 conv3x3s1_winograd43_requant_int8_neon(bottom_blob_bordered, top_blob, weight_3x3_winograd23_int8_data, bias_data, requantize_scales, opt);
 #if DEBUG_FEATURE
                 extract_feature_in_s8(0, this->name.c_str(), bottom_blob_bordered);
-#endif                 
+#endif
                 return 0;
             }
             else if (kernel_w == 3 && kernel_h == 3 && dilation_w == 1 && dilation_h == 1 && stride_w == 2 && stride_h == 2)
@@ -578,7 +578,7 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
             {
                 conv_int8_requant(bottom_blob_bordered, top_blob, weight_data, bias_data, requantize_scales, opt);  
             }
-#if DEBUG_TIME            
+#if DEBUG_TIME
             end = get_current_time();
             printf("conv       : %8.3f ms\n", end - start);
             start = get_current_time();
@@ -615,6 +615,7 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
                 start = get_current_time();
 #endif                 
                 conv1x1s1_int8_e2e_neon(bottom_blob_bordered, top_blob, weight_data, opt);
+                // conv1x1s1_sgemm_int8_e2e_neon(bottom_blob_bordered, top_blob, weight_1x1s1_sgemm_int8_data, opt);
 #if DEBUG_TIME                 
                 end = get_current_time();
                 printf("conv       : %8.3f ms\n", end - start);

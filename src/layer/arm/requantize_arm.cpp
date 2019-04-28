@@ -173,9 +173,9 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                         "prfm   pldl1keep, [%1, #128]    \n"
                         "ld1    {v0.8h}, [%1], #16       \n"
                         // top_blob = top_blob + shift_round
-                        "add    v1.8h, v0.8h, %7.8h      \n"
+                        "sqadd    v1.8h, v0.8h, %7.8h    \n"
                         // top_blob = top_blob + bias_tm
-                        "add    v2.8h, v1.8h, %6.8h      \n"
+                        "sqadd    v2.8h, v1.8h, %6.8h    \n"
                         // top_blob = top_blob >> scale_fuse_shift
                         "sshl   v5.8h, v2.8h, %8.8h      \n"
                         // top_blob s16 -> s8
@@ -268,7 +268,7 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
         }
         else
         {
-            #pragma omp parallel for num_threads(opt.num_threads)
+            // #pragma omp parallel for num_threads(opt.num_threads)
             for (int q=0; q<channels; q++)
             {
                 const short* intptr = bottom_blob.channel(q);
@@ -287,7 +287,7 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                         "prfm   pldl1keep, [%1, #128]    \n"
                         "ld1    {v0.8h}, [%1], #16       \n"
                         // top_blob = top_blob + shift_round
-                        "add    v1.8h, v0.8h, %6.8h      \n"
+                        "sqadd  v1.8h, v0.8h, %6.8h      \n"
                         // top_blob = top_blob >> scale_fuse_shift
                         "sshl   v5.8h, v2.8h, %7.8h      \n"
                         // top_blob s16 -> s8
