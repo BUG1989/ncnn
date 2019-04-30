@@ -27,8 +27,6 @@ public:
     virtual int load_param(const ParamDict& pd);
 
     virtual int forward(const std::vector<Mat>& bottom_blobs, std::vector<Mat>& top_blobs, const Option& opt) const;
-    virtual int forward_int8(const std::vector<Mat>& bottom_blobs, std::vector<Mat>& top_blobs, const Option& opt) const;
-
 #if NCNN_VULKAN
     virtual int create_pipeline();
     virtual int destroy_pipeline();
@@ -42,11 +40,6 @@ public:
     // param
     int op_type;
     Mat coeffs;
-
-    bool use_int8_inference;
-
-    std::vector<float> bottom_scales;
-    float top_scale;
 
 #if NCNN_VULKAN
     Pipeline* pipeline_eltwise[2];

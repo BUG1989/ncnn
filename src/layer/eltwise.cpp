@@ -24,7 +24,6 @@ Eltwise::Eltwise()
     one_blob_only = false;
     support_inplace = false;// TODO inplace reduction
     support_vulkan = true;
-    use_int8_inference = false;
 
 #if NCNN_VULKAN
     pipeline_eltwise[0] = 0;
@@ -42,86 +41,8 @@ int Eltwise::load_param(const ParamDict& pd)
     return 0;
 }
 
-int Eltwise::forward_int8(const std::vector<Mat>& bottom_blobs, std::vector<Mat>& top_blobs, const Option& opt) const
-{
-    const Mat& bottom_blob = bottom_blobs[0];
-    int w = bottom_blob.w;
-    int h = bottom_blob.h;
-    int channels = bottom_blob.c;
-    size_t elemsize = bottom_blob.elemsize;
-    int size = w * h;
-
-    Mat& top_blob = top_blobs[0];
-    top_blob.create(w, h, channels, elemsize, opt.blob_allocator);
-    if (top_blob.empty())
-        return -100;
-
-    if (op_type == Operation_SUM && coeffs.w == 0)
-    {
-        // synchronize the bottom_blobs int8 scale
-        // find the minimum scale
-        float 
-        for (size_t n=0; n<bottom_blobs.size(); n++)
-
-        // first blob
-        const Mat& bottom_blob1 = bottom_blobs[1];
-        #pragma omp parallel for num_threads(opt.num_threads)
-        for (int q=0; q<channels; q++)
-        {
-            const float* ptr = bottom_blob.channel(q);
-            const float* ptr1 = bottom_blob1.channel(q);
-            float* outptr = top_blob.channel(q);
-
-            for (int i=0; i<size; i++)
-            {
-                outptr[i] = ptr[i] + ptr1[i];
-            }
-        }
-
-        for (size_t b=2; b<bottom_blobs.size(); b++)
-        {
-            const Mat& bottom_blob1 = bottom_blobs[b];
-            #pragma omp parallel for num_threads(opt.num_threads)
-            for (int q=0; q<channels; q++)
-            {
-                const float* ptr = bottom_blob1.channel(q);
-                float* outptr = top_blob.channel(q);
-
-                for (int i=0; i<size; i++)
-                {
-                    outptr[i] += ptr[i];
-                }
-            }
-        }        
-    }
-    else 
-    {
-        fprintf(stderr, "Eltwise-Int8 dose only support SUM operation, int8 inference fail!\n");
-        return -1;
-    }
-
-    return 0;
-}
-
 int Eltwise::forward(const std::vector<Mat>& bottom_blobs, std::vector<Mat>& top_blobs, const Option& opt) const
 {
-    // all int8?
-    bool bottom_int8 = true;
-    for (size_t n=0; n<bottom_blobs.size(); n++)
-    {
-        if (bottom_blobs[n].elemsize != 1u)
-        {
-            bottom_int8 = false;
-            break;
-        }
-    }
-
-    // eltwise forward with int8
-    return Eltwise::forward_int8(bottom_blobs, top_blobs, opt);
-
-    // dequant the int8 blob to fp32
-    
-    // eltwise forward with fp32
     const Mat& bottom_blob = bottom_blobs[0];
     int w = bottom_blob.w;
     int h = bottom_blob.h;

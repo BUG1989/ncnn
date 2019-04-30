@@ -153,9 +153,11 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
                 {
                 asm volatile(
                     "pld        [%1, #256]          \n"
-                    "vld1.s32   {d0-d3}, [%1]!      \n" //q0-q1 data
+                    "vld1.s16   {d0-d1}, [%1]!      \n" //q0-q1 data
                     "vdup.f32   q10, %6             \n" //q10 scale
                     "vdup.f32   q12, %7             \n" //q12 bias
+                    "vmovl.s16  q1, d1              \n"
+                    "vmovl.s16  q0, d0              \n"
 
                     "0:                             \n"
                     "vcvt.f32.s32 q0, q0            \n"
@@ -168,7 +170,9 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
                     "vadd.f32   q3,q1,q12           \n"
 
                     "pld        [%1, #256]          \n"
-                    "vld1.s32   {d0-d3}, [%1]!      \n"
+                    "vld1.s16   {d0-d1}, [%1]!      \n"
+                    "vmovl.s16  q1, d1              \n"
+                    "vmovl.s16  q0, d0              \n"
                     "vst1.f32   {d4-d7}, [%2]!      \n"
 
                     "subs       %0, #1              \n"
@@ -249,8 +253,10 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
                 {
                 asm volatile(
                     "pld        [%1, #256]          \n"
-                    "vld1.s32   {d0-d3}, [%1]!      \n" //q0-q1 data
+                    "vld1.s16   {d0-d1}, [%1]!      \n" //q0-q1 data
                     "vdup.f32   q10, %6             \n" //q10 scale
+                    "vmovl.s16  q1, d1              \n"
+                    "vmovl.s16  q0, d0              \n"
 
                     "0:                             \n"
                     "vcvt.f32.s32 q0, q0            \n"
@@ -260,7 +266,9 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
                     "vmul.f32   q3,q1,q10           \n"
 
                     "pld        [%1, #256]          \n"
-                    "vld1.s32   {d0-d3}, [%1]!      \n"
+                    "vld1.s16   {d0-d1}, [%1]!      \n"
+                    "vmovl.s16  q1, d1              \n"
+                    "vmovl.s16  q0, d0              \n"
                     "vst1.f32   {d4-d7}, [%2]!      \n"
 
                     "subs       %0, #1              \n"
