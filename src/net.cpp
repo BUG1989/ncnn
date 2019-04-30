@@ -18,6 +18,7 @@
 #include "paramdict.h"
 #include "convolution.h"
 #include "convolutiondepthwise.h"
+#include "eltwise.h"
 #include "relu.h"
 
 #include <stdarg.h>
@@ -864,6 +865,10 @@ void Net::fuse_network()
 {
     // set the int8 op fusion:requantize
 #if NCNN_STRING && NCNN_REQUANT    
+    fprintf(stderr, "New int8 layer fuse implement:\n");
+
+    
+#if 0
     // fprintf(stderr, "Test op fusion to int8 implement:\n");
     for (size_t i=0; i<layers.size(); i++)
     {
@@ -881,6 +886,9 @@ void Net::fuse_network()
 
                 if (layer_next->type == "ReLU")
                 {
+                    if (((ReLU*)layer_next)->slope != 0.f)
+                        continue;
+
                     int layer_next_2_index = blobs[layer_next->tops[0]].consumers[0];
                     Layer* layer_next_2 = layers[layer_next_2_index];
 
@@ -922,6 +930,7 @@ void Net::fuse_network()
                             {
                                 // fprintf(stderr, "%s, %s, %s, %s\n", layer->name.c_str(), layer_next->name.c_str(), layer_next_2->name.c_str(), layers[layer_next_3_index]->name.c_str());
                                 all_conv = false;
+                                break;
                             }
                         }
 
@@ -950,6 +959,61 @@ void Net::fuse_network()
                         // fprintf(stderr, "%s, %s\n", layer->name.c_str(), layer_next->name.c_str());
                     }
                 }
+                else if (layer_next->type == "Eltwise")
+                {
+                    if (((Eltwise*)layer_next)->op_type == 1 && ((Eltwise*)layer_next)->coeffs.w == 0)
+                    {
+                        int layer_next_2_index = blobs[layer_next->tops[0]].consumers[0];
+                        Layer* layer_next_2 = layers[layer_next_2_index];
+
+                        if (layer_next_2->type == "ReLU")
+                        {
+                            if (((ReLU*)layer_next_2)->slope != 0.f)
+                                continue;
+
+                            int layer_next_3_index = blobs[layer_next_2->tops[i]].consumers[0];
+                            Layer* layer_next_3 = layers[layer_next_3_index];
+
+                            if (layer_next_3->type == "Split")
+                            {
+                                bool all_conv = true;
+
+                                for (size_t i=0; i<layer_next_3->tops.size(); i++)
+                                {
+                                    int layer_next_4_index = blobs[layer_next_3->tops[i]].consumers[0];
+                                    if (layers[layer_next_4_index]->type != "Convolution" && layers[layer_next_4_index]->type != "ConvolutionDepthWise" && 
+                                        layers[layer_next_4_index]->type != "PriorBox" && layers[layer_next_4_index]->type != "Eltwise")
+                                    {
+                                        // fprintf(stderr, "%s, %s, %s, %s\n", layer->name.c_str(), layer_next->name.c_str(), layer_next_2->name.c_str(), layers[layer_next_3_index]->name.c_str());
+                                        all_conv = false;
+                                        break;
+                                    }
+
+                                    fprintf(stderr, "%s, %s, %s, ", layer->name.c_str(), layer_next->name.c_str(), layer_next_2->name.c_str());
+                                    for (size_t i=0; i<layer_next_3->tops.size(); i++)
+                                    {
+                                        int layer_next_4_index = blobs[layer_next_3->tops[i]].consumers[0];
+                                        Layer* layer_next_4 = layers[layer_next_4_index];
+
+                                        fprintf(stderr, "%s, ", layer_next_4->name.c_str());
+                                        if (layer_next_4->type == "Convolution")
+                                        {
+                                            ((Convolution*)layer)->top_blob_int8_scale = ((Convolution*)layer_next_4)->bottom_blob_int8_scale;
+                                            ((Eltwise*)layer_next)->top_scale = ((Convolution*)layer_next_4)->bottom_blob_int8_scale;
+                                        }
+                                    }
+
+                                    ((Eltwise*)layer_next)->bottom_scales.push_back(((Convolution*)layer)->top_blob_int8_scale);
+                                    ((Eltwise*)layer_next)->use_int8_inference = true;
+
+                                    ((Convolution*)layer)->use_int8_requantize = true;
+                                    ((Convolution*)layer)->create_requantize_op();    
+                                    fprintf(stderr, "\n");                                    
+                                }                                
+                            }
+                        }
+                    }
+                }
                 else if (layer_next->type == "Pooling")
                 {
                     // ToDo
@@ -960,7 +1024,19 @@ void Net::fuse_network()
                 }                  
             }
         }
+        else if(layer->type == "Eltwise")
+        {
+            if (((Eltwise*)layer)->use_int8_inference == true)
+            {
+
+            }
+        }
+        else
+        {
+
+        }
     }
+#endif
 #endif
 }
 

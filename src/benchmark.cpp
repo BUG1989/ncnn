@@ -64,22 +64,42 @@ double get_current_time()
 
 #if NCNN_BENCHMARK
 
+float conv3x3s1 = 0;
+float conv3x3s2 = 0;
+float conv1x1s1 = 0;
+float deconv = 0;
+float relu = 0;
+float eltwise = 0;
+
 void benchmark(const Layer* layer, double start, double end)
 {
     fprintf(stderr, "%-24s %-40s %8.2lfms", layer->type.c_str(), layer->name.c_str(), end - start);
     fprintf(stderr, "    |");
+
+    if (layer->type == "Eltwise")
+    {
+        eltwise += end - start;
+        fprintf(stderr, "   %8.2lfms", eltwise);
+    }    
+
     fprintf(stderr, "\n");
 }
-
-float conv3x3s1 = 0;
-float conv3x3s2 = 0;
-float conv1x1s1 = 0;
 
 void benchmark(const Layer* layer, const Mat& bottom_blob, Mat& top_blob, double start, double end)
 {
     fprintf(stderr, "%-24s %-40s %8.2lfms", layer->type.c_str(), layer->name.c_str(), end - start);
     fprintf(stderr, "    |    feature_map: %4d x %-4d    inch: %4d    outch: %4d", top_blob.w, top_blob.h, bottom_blob.c, top_blob.c);
 
+    if (layer->type == "DeconvolutionDepthWise")
+    {
+        deconv += end - start;
+        fprintf(stderr, "   %8.2lfms", deconv);
+    }
+    if (layer->type == "ReLU")
+    {
+        relu += end - start;
+        fprintf(stderr, "   %8.2lfms", relu);
+    }    
     if (layer->type == "Convolution")
     {
         double op = (double)top_blob.w*top_blob.h*top_blob.c*bottom_blob.c*((Convolution*)layer)->kernel_w*((Convolution*)layer)->kernel_h*2;
