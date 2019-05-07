@@ -80,6 +80,8 @@ public:
         }
 #endif // NCNN_VULKAN
 
+        fuse_network();
+
         return ret;
     }
 };
