@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "convolutiondepthwise_arm.h"
+#include "benchmark.h"
 #ifdef _OPENMP
 #include <omp.h>
 #endif
