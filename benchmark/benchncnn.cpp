@@ -80,6 +80,9 @@ public:
         }
 #endif // NCNN_VULKAN
 
+
+        fuse_network();
+
         return ret;
     }
 };
@@ -131,13 +134,13 @@ void benchmark(const char* comment, void (*init)(ncnn::Net&), void (*run)(const 
 #ifdef _WIN32
     Sleep(10 * 1000);
 #else
-    sleep(10);
+    sleep(1);
 #endif
 
     // warm up
-    run(net);
-    run(net);
-    run(net);
+    // run(net);
+    // run(net);
+    // run(net);
 
     double time_min = DBL_MAX;
     double time_max = -DBL_MAX;
