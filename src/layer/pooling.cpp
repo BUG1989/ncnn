@@ -140,6 +140,10 @@ int Pooling::forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) c
             }
         }
 
+#if DEBUG_FEATURE
+        extract_feature_out_f32(0, this->name.c_str(), top_blob);
+#endif          
+
         return 0;
     }
 
@@ -330,6 +334,10 @@ int Pooling::forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) c
             }
         }
     }
+
+#if DEBUG_FEATURE
+    extract_feature_out_f32(0, this->name.c_str(), top_blob);
+#endif     
 
     return 0;
 }

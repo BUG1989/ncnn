@@ -211,6 +211,9 @@ int ConvolutionDepthWise_x86::forward(const Mat& bottom_blob, Mat& top_blob, con
     {
         if (use_int8_requantize)
         {
+#if DEBUG_FEATURE
+            extract_feature_in_s8(0, this->name.c_str(), bottom_blob_bordered);
+#endif               
             Mat top_blob_tm;
             top_blob_tm.create(outw, outh, num_output, (size_t)4u, opt.workspace_allocator);
             if (top_blob_tm.empty())

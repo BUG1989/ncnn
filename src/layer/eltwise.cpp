@@ -194,6 +194,10 @@ int Eltwise::forward(const std::vector<Mat>& bottom_blobs, std::vector<Mat>& top
         }
     }
 
+#if DEBUG_FEATURE
+    extract_feature_out_f32(0, this->name.c_str(), top_blob);
+#endif    
+
     return 0;
 }
 

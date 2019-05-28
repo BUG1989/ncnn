@@ -234,6 +234,9 @@ int ConvolutionDepthWise_arm::forward(const Mat& bottom_blob, Mat& top_blob, con
     // int8 
     if (use_int8_inference)
     {
+#if DEBUG_FEATURE
+        extract_feature_in_s8(0, this->name.c_str(), bottom_blob_bordered);
+#endif             
         if (use_int8_requantize)
         {
             Mat top_blob_tm;
@@ -266,7 +269,7 @@ int ConvolutionDepthWise_arm::forward(const Mat& bottom_blob, Mat& top_blob, con
                         end = get_current_time();
                         printf("convdw     : %8.3f ms\n", end - start);
                         start = get_current_time();
-#endif  
+#endif      
                         return 0;
                     }
                 }

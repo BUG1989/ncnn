@@ -193,6 +193,10 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     const int kernel_size = kernel_w;
     const int stride = stride_w;
 
+#if DEBUG_FEATURE
+    extract_feature_in_f32(0, this->name.c_str(), bottom_blob);
+#endif     
+
     if (kernel_size > 7 || stride > 7 || dilation_w != dilation_h)
     {
         return Convolution::forward(bottom_blob, top_blob, opt);
@@ -430,6 +434,9 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     // int8
     if (use_int8_inference)
     {
+#if DEBUG_FEATURE
+        extract_feature_in_s8(0, this->name.c_str(), bottom_blob_bordered);
+#endif          
         if (use_int8_requantize == true)
         {
             Mat top_blob_tm;
@@ -488,6 +495,10 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
             else
                 conv_int8_dequant(bottom_blob_bordered, top_blob, weight_data, bias_data, dequantize_scales, opt);     
         }
+
+#if DEBUG_FEATURE
+        extract_feature_out_f32(0, this->name.c_str(), top_blob);
+#endif         
     
         return 0;
     }
@@ -504,6 +515,12 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     }    
     else
         conv(bottom_blob_bordered, top_blob, weight_data, bias_data, opt);
+
+
+#if DEBUG_FEATURE
+        extract_feature_out_f32(0, this->name.c_str(), top_blob);
+#endif 
+
        
     return 0;
 }

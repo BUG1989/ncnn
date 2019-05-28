@@ -188,6 +188,10 @@ int InnerProduct::forward(const Mat& bottom_blob, Mat& top_blob, const Option& o
     size_t elemsize = bottom_blob.elemsize;
     int size = w * h;
 
+#if DEBUG_FEATURE
+    extract_feature_in_f32(0, this->name.c_str(), bottom_blob);
+#endif       
+
     top_blob.create(num_output, elemsize, opt.blob_allocator);
     if (top_blob.empty())
         return -100;
@@ -272,6 +276,10 @@ int InnerProduct::forward(const Mat& bottom_blob, Mat& top_blob, const Option& o
 
         top_blob[p] = sum;
     }
+
+#if DEBUG_FEATURE
+    extract_feature_out_f32(0, this->name.c_str(), top_blob);
+#endif    
 
     return 0;
 }
