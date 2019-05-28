@@ -3561,24 +3561,60 @@ static void conv1x1s1_int8_e2e_neon(const Mat &bottom_blob, Mat &top_blob, const
 
             for (; remain>0; remain--)
             {
-                // TODO neon optimize
-                short sum0 = (short)*r0 * kernel0[0] + *r1 * kernel0[1] + *r2 * kernel0[2] + *r3 * kernel0[3] + *r4 * kernel0[4] + *r5 * kernel0[5] + *r6 * kernel0[6] + *r7 * kernel0[7] + *r8 * kernel0[8] + *r9 * kernel0[9] + *r10 * kernel0[10] + *r11 * kernel0[11] + *r12 * kernel0[12] + *r13 * kernel0[13] + *r14 * kernel0[14] + *r15 * kernel0[15];
-                short sum1 = (short)*r0 * kernel1[0] + *r1 * kernel1[1] + *r2 * kernel1[2] + *r3 * kernel1[3] + *r4 * kernel1[4] + *r5 * kernel1[5] + *r6 * kernel1[6] + *r7 * kernel1[7] + *r8 * kernel1[8] + *r9 * kernel1[9] + *r10 * kernel1[10] + *r11 * kernel1[11] + *r12 * kernel1[12] + *r13 * kernel1[13] + *r14 * kernel1[14] + *r15 * kernel1[15];
-                short sum2 = (short)*r0 * kernel2[0] + *r1 * kernel2[1] + *r2 * kernel2[2] + *r3 * kernel2[3] + *r4 * kernel2[4] + *r5 * kernel2[5] + *r6 * kernel2[6] + *r7 * kernel2[7] + *r8 * kernel2[8] + *r9 * kernel2[9] + *r10 * kernel2[10] + *r11 * kernel2[11] + *r12 * kernel2[12] + *r13 * kernel2[13] + *r14 * kernel2[14] + *r15 * kernel2[15];
-                short sum3 = (short)*r0 * kernel3[0] + *r1 * kernel3[1] + *r2 * kernel3[2] + *r3 * kernel3[3] + *r4 * kernel3[4] + *r5 * kernel3[5] + *r6 * kernel3[6] + *r7 * kernel3[7] + *r8 * kernel3[8] + *r9 * kernel3[9] + *r10 * kernel3[10] + *r11 * kernel3[11] + *r12 * kernel3[12] + *r13 * kernel3[13] + *r14 * kernel3[14] + *r15 * kernel3[15];
-                short sum4 = (short)*r0 * kernel4[0] + *r1 * kernel4[1] + *r2 * kernel4[2] + *r3 * kernel4[3] + *r4 * kernel4[4] + *r5 * kernel4[5] + *r6 * kernel4[6] + *r7 * kernel4[7] + *r8 * kernel4[8] + *r9 * kernel4[9] + *r10 * kernel4[10] + *r11 * kernel4[11] + *r12 * kernel4[12] + *r13 * kernel4[13] + *r14 * kernel4[14] + *r15 * kernel4[15];
-                short sum5 = (short)*r0 * kernel5[0] + *r1 * kernel5[1] + *r2 * kernel5[2] + *r3 * kernel5[3] + *r4 * kernel5[4] + *r5 * kernel5[5] + *r6 * kernel5[6] + *r7 * kernel5[7] + *r8 * kernel5[8] + *r9 * kernel5[9] + *r10 * kernel5[10] + *r11 * kernel5[11] + *r12 * kernel5[12] + *r13 * kernel5[13] + *r14 * kernel5[14] + *r15 * kernel5[15];
-                short sum6 = (short)*r0 * kernel6[0] + *r1 * kernel6[1] + *r2 * kernel6[2] + *r3 * kernel6[3] + *r4 * kernel6[4] + *r5 * kernel6[5] + *r6 * kernel6[6] + *r7 * kernel6[7] + *r8 * kernel6[8] + *r9 * kernel6[9] + *r10 * kernel6[10] + *r11 * kernel6[11] + *r12 * kernel6[12] + *r13 * kernel6[13] + *r14 * kernel6[14] + *r15 * kernel6[15];
-                short sum7 = (short)*r0 * kernel7[0] + *r1 * kernel7[1] + *r2 * kernel7[2] + *r3 * kernel7[3] + *r4 * kernel7[4] + *r5 * kernel7[5] + *r6 * kernel7[6] + *r7 * kernel7[7] + *r8 * kernel7[8] + *r9 * kernel7[9] + *r10 * kernel7[10] + *r11 * kernel7[11] + *r12 * kernel7[12] + *r13 * kernel7[13] + *r14 * kernel7[14] + *r15 * kernel7[15];
+                // // TODO neon optimize
+                // int sum0 = (int)*r0 * kernel0[0] + *r1 * kernel0[1] + *r2 * kernel0[2] + *r3 * kernel0[3] + *r4 * kernel0[4] + *r5 * kernel0[5] + *r6 * kernel0[6] + *r7 * kernel0[7] + *r8 * kernel0[8] + *r9 * kernel0[9] + *r10 * kernel0[10] + *r11 * kernel0[11] + *r12 * kernel0[12] + *r13 * kernel0[13] + *r14 * kernel0[14] + *r15 * kernel0[15];
+                // int sum1 = (int)*r0 * kernel1[0] + *r1 * kernel1[1] + *r2 * kernel1[2] + *r3 * kernel1[3] + *r4 * kernel1[4] + *r5 * kernel1[5] + *r6 * kernel1[6] + *r7 * kernel1[7] + *r8 * kernel1[8] + *r9 * kernel1[9] + *r10 * kernel1[10] + *r11 * kernel1[11] + *r12 * kernel1[12] + *r13 * kernel1[13] + *r14 * kernel1[14] + *r15 * kernel1[15];
+                // int sum2 = (int)*r0 * kernel2[0] + *r1 * kernel2[1] + *r2 * kernel2[2] + *r3 * kernel2[3] + *r4 * kernel2[4] + *r5 * kernel2[5] + *r6 * kernel2[6] + *r7 * kernel2[7] + *r8 * kernel2[8] + *r9 * kernel2[9] + *r10 * kernel2[10] + *r11 * kernel2[11] + *r12 * kernel2[12] + *r13 * kernel2[13] + *r14 * kernel2[14] + *r15 * kernel2[15];
+                // int sum3 = (int)*r0 * kernel3[0] + *r1 * kernel3[1] + *r2 * kernel3[2] + *r3 * kernel3[3] + *r4 * kernel3[4] + *r5 * kernel3[5] + *r6 * kernel3[6] + *r7 * kernel3[7] + *r8 * kernel3[8] + *r9 * kernel3[9] + *r10 * kernel3[10] + *r11 * kernel3[11] + *r12 * kernel3[12] + *r13 * kernel3[13] + *r14 * kernel3[14] + *r15 * kernel3[15];
+                // int sum4 = (int)*r0 * kernel4[0] + *r1 * kernel4[1] + *r2 * kernel4[2] + *r3 * kernel4[3] + *r4 * kernel4[4] + *r5 * kernel4[5] + *r6 * kernel4[6] + *r7 * kernel4[7] + *r8 * kernel4[8] + *r9 * kernel4[9] + *r10 * kernel4[10] + *r11 * kernel4[11] + *r12 * kernel4[12] + *r13 * kernel4[13] + *r14 * kernel4[14] + *r15 * kernel4[15];
+                // int sum5 = (int)*r0 * kernel5[0] + *r1 * kernel5[1] + *r2 * kernel5[2] + *r3 * kernel5[3] + *r4 * kernel5[4] + *r5 * kernel5[5] + *r6 * kernel5[6] + *r7 * kernel5[7] + *r8 * kernel5[8] + *r9 * kernel5[9] + *r10 * kernel5[10] + *r11 * kernel5[11] + *r12 * kernel5[12] + *r13 * kernel5[13] + *r14 * kernel5[14] + *r15 * kernel5[15];
+                // int sum6 = (int)*r0 * kernel6[0] + *r1 * kernel6[1] + *r2 * kernel6[2] + *r3 * kernel6[3] + *r4 * kernel6[4] + *r5 * kernel6[5] + *r6 * kernel6[6] + *r7 * kernel6[7] + *r8 * kernel6[8] + *r9 * kernel6[9] + *r10 * kernel6[10] + *r11 * kernel6[11] + *r12 * kernel6[12] + *r13 * kernel6[13] + *r14 * kernel6[14] + *r15 * kernel6[15];
+                // int sum7 = (int)*r0 * kernel7[0] + *r1 * kernel7[1] + *r2 * kernel7[2] + *r3 * kernel7[3] + *r4 * kernel7[4] + *r5 * kernel7[5] + *r6 * kernel7[6] + *r7 * kernel7[7] + *r8 * kernel7[8] + *r9 * kernel7[9] + *r10 * kernel7[10] + *r11 * kernel7[11] + *r12 * kernel7[12] + *r13 * kernel7[13] + *r14 * kernel7[14] + *r15 * kernel7[15];
 
-                *outptr0 += sum0;
-                *outptr1 += sum1;
-                *outptr2 += sum2;
-                *outptr3 += sum3;
-                *outptr4 += sum4;
-                *outptr5 += sum5;
-                *outptr6 += sum6;
-                *outptr7 += sum7;
+                // *outptr0 = saturate2int16((int)(*outptr0) + sum0);
+                // *outptr1 = saturate2int16((int)(*outptr1) + sum1);
+                // *outptr2 = saturate2int16((int)(*outptr2) + sum2);
+                // *outptr3 = saturate2int16((int)(*outptr3) + sum3);
+                // *outptr4 = saturate2int16((int)(*outptr4) + sum4);
+                // *outptr5 = saturate2int16((int)(*outptr5) + sum5);
+                // *outptr6 = saturate2int16((int)(*outptr6) + sum6);
+                // *outptr7 = saturate2int16((int)(*outptr7) + sum7);
+
+                short sum0 = (short)*r0 * kernel0[0] + *r1 * kernel0[1] + *r2 * kernel0[2] + *r3 * kernel0[3] + *r4 * kernel0[4] + *r5 * kernel0[5] + *r6 * kernel0[6] + *r7 * kernel0[7];
+                short sum1 = (short)*r0 * kernel1[0] + *r1 * kernel1[1] + *r2 * kernel1[2] + *r3 * kernel1[3] + *r4 * kernel1[4] + *r5 * kernel1[5] + *r6 * kernel1[6] + *r7 * kernel1[7];
+                short sum2 = (short)*r0 * kernel2[0] + *r1 * kernel2[1] + *r2 * kernel2[2] + *r3 * kernel2[3] + *r4 * kernel2[4] + *r5 * kernel2[5] + *r6 * kernel2[6] + *r7 * kernel2[7];
+                short sum3 = (short)*r0 * kernel3[0] + *r1 * kernel3[1] + *r2 * kernel3[2] + *r3 * kernel3[3] + *r4 * kernel3[4] + *r5 * kernel3[5] + *r6 * kernel3[6] + *r7 * kernel3[7];
+                short sum4 = (short)*r0 * kernel4[0] + *r1 * kernel4[1] + *r2 * kernel4[2] + *r3 * kernel4[3] + *r4 * kernel4[4] + *r5 * kernel4[5] + *r6 * kernel4[6] + *r7 * kernel4[7];
+                short sum5 = (short)*r0 * kernel5[0] + *r1 * kernel5[1] + *r2 * kernel5[2] + *r3 * kernel5[3] + *r4 * kernel5[4] + *r5 * kernel5[5] + *r6 * kernel5[6] + *r7 * kernel5[7];
+                short sum6 = (short)*r0 * kernel6[0] + *r1 * kernel6[1] + *r2 * kernel6[2] + *r3 * kernel6[3] + *r4 * kernel6[4] + *r5 * kernel6[5] + *r6 * kernel6[6] + *r7 * kernel6[7];
+                short sum7 = (short)*r0 * kernel7[0] + *r1 * kernel7[1] + *r2 * kernel7[2] + *r3 * kernel7[3] + *r4 * kernel7[4] + *r5 * kernel7[5] + *r6 * kernel7[6] + *r7 * kernel7[7];
+
+                *outptr0 = saturate2int16((int)(*outptr0) + sum0);
+                *outptr1 = saturate2int16((int)(*outptr1) + sum1);
+                *outptr2 = saturate2int16((int)(*outptr2) + sum2);
+                *outptr3 = saturate2int16((int)(*outptr3) + sum3);
+                *outptr4 = saturate2int16((int)(*outptr4) + sum4);
+                *outptr5 = saturate2int16((int)(*outptr5) + sum5);
+                *outptr6 = saturate2int16((int)(*outptr6) + sum6);
+                *outptr7 = saturate2int16((int)(*outptr7) + sum7);            
+
+                sum0 = (short)*r8 * kernel0[8] + *r9 * kernel0[9] + *r10 * kernel0[10] + *r11 * kernel0[11] + *r12 * kernel0[12] + *r13 * kernel0[13] + *r14 * kernel0[14] + *r15 * kernel0[15];
+                sum1 = (short)*r8 * kernel1[8] + *r9 * kernel1[9] + *r10 * kernel1[10] + *r11 * kernel1[11] + *r12 * kernel1[12] + *r13 * kernel1[13] + *r14 * kernel1[14] + *r15 * kernel1[15];
+                sum2 = (short)*r8 * kernel2[8] + *r9 * kernel2[9] + *r10 * kernel2[10] + *r11 * kernel2[11] + *r12 * kernel2[12] + *r13 * kernel2[13] + *r14 * kernel2[14] + *r15 * kernel2[15];
+                sum3 = (short)*r8 * kernel3[8] + *r9 * kernel3[9] + *r10 * kernel3[10] + *r11 * kernel3[11] + *r12 * kernel3[12] + *r13 * kernel3[13] + *r14 * kernel3[14] + *r15 * kernel3[15];
+                sum4 = (short)*r8 * kernel4[8] + *r9 * kernel4[9] + *r10 * kernel4[10] + *r11 * kernel4[11] + *r12 * kernel4[12] + *r13 * kernel4[13] + *r14 * kernel4[14] + *r15 * kernel4[15];
+                sum5 = (short)*r8 * kernel5[8] + *r9 * kernel5[9] + *r10 * kernel5[10] + *r11 * kernel5[11] + *r12 * kernel5[12] + *r13 * kernel5[13] + *r14 * kernel5[14] + *r15 * kernel5[15];
+                sum6 = (short)*r8 * kernel6[8] + *r9 * kernel6[9] + *r10 * kernel6[10] + *r11 * kernel6[11] + *r12 * kernel6[12] + *r13 * kernel6[13] + *r14 * kernel6[14] + *r15 * kernel6[15];
+                sum7 = (short)*r8 * kernel7[8] + *r9 * kernel7[9] + *r10 * kernel7[10] + *r11 * kernel7[11] + *r12 * kernel7[12] + *r13 * kernel7[13] + *r14 * kernel7[14] + *r15 * kernel7[15];
+
+                *outptr0 = saturate2int16((int)(*outptr0) + sum0);
+                *outptr1 = saturate2int16((int)(*outptr1) + sum1);
+                *outptr2 = saturate2int16((int)(*outptr2) + sum2);
+                *outptr3 = saturate2int16((int)(*outptr3) + sum3);
+                *outptr4 = saturate2int16((int)(*outptr4) + sum4);
+                *outptr5 = saturate2int16((int)(*outptr5) + sum5);
+                *outptr6 = saturate2int16((int)(*outptr6) + sum6);
+                *outptr7 = saturate2int16((int)(*outptr7) + sum7);                    
 
                 r0++;
                 r1++;
@@ -4068,14 +4104,14 @@ static void conv1x1s1_int8_e2e_neon(const Mat &bottom_blob, Mat &top_blob, const
                 short sum6 = (short)*r0 * kernel6[0] + *r1 * kernel6[1] + *r2 * kernel6[2] + *r3 * kernel6[3] + *r4 * kernel6[4] + *r5 * kernel6[5] + *r6 * kernel6[6] + *r7 * kernel6[7];
                 short sum7 = (short)*r0 * kernel7[0] + *r1 * kernel7[1] + *r2 * kernel7[2] + *r3 * kernel7[3] + *r4 * kernel7[4] + *r5 * kernel7[5] + *r6 * kernel7[6] + *r7 * kernel7[7];
 
-                *outptr0 += sum0;
-                *outptr1 += sum1;
-                *outptr2 += sum2;
-                *outptr3 += sum3;
-                *outptr4 += sum4;
-                *outptr5 += sum5;
-                *outptr6 += sum6;
-                *outptr7 += sum7;
+                *outptr0 = saturate2int16((int)(*outptr0) + sum0);
+                *outptr1 = saturate2int16((int)(*outptr1) + sum1);
+                *outptr2 = saturate2int16((int)(*outptr2) + sum2);
+                *outptr3 = saturate2int16((int)(*outptr3) + sum3);
+                *outptr4 = saturate2int16((int)(*outptr4) + sum4);
+                *outptr5 = saturate2int16((int)(*outptr5) + sum5);
+                *outptr6 = saturate2int16((int)(*outptr6) + sum6);
+                *outptr7 = saturate2int16((int)(*outptr7) + sum7);
 
                 r0++;
                 r1++;
@@ -4206,14 +4242,14 @@ static void conv1x1s1_int8_e2e_neon(const Mat &bottom_blob, Mat &top_blob, const
                 short sum6 = (short)*r0 * k6;
                 short sum7 = (short)*r0 * k7;              
 
-                *outptr0 += sum0;
-                *outptr1 += sum1;
-                *outptr2 += sum2;
-                *outptr3 += sum3;
-                *outptr4 += sum4;
-                *outptr5 += sum5;
-                *outptr6 += sum6;
-                *outptr7 += sum7;                
+                *outptr0 = saturate2int16((int)(*outptr0) + sum0);
+                *outptr1 = saturate2int16((int)(*outptr1) + sum1);
+                *outptr2 = saturate2int16((int)(*outptr2) + sum2);
+                *outptr3 = saturate2int16((int)(*outptr3) + sum3);
+                *outptr4 = saturate2int16((int)(*outptr4) + sum4);
+                *outptr5 = saturate2int16((int)(*outptr5) + sum5);
+                *outptr6 = saturate2int16((int)(*outptr6) + sum6);
+                *outptr7 = saturate2int16((int)(*outptr7) + sum7);              
 
                 r0++;
                 outptr0++;
@@ -5003,7 +5039,11 @@ static void conv1x1s1_int8_e2e_neon(const Mat &bottom_blob, Mat &top_blob, const
     }
 #endif
 
-    remain_outch_start += nn_outch << 2;    
+#if __aarch64__
+
+#else
+    remain_outch_start += nn_outch << 2;  
+#endif      
     #pragma omp parallel for num_threads(opt.num_threads)
     for (int p=remain_outch_start; p<outch; p++)
     {
@@ -5107,7 +5147,7 @@ static void conv1x1s1_int8_e2e_neon(const Mat &bottom_blob, Mat &top_blob, const
                 short sum6 = (short)*r6 * k6;
                 short sum7 = (short)*r7 * k7;                
 
-                *outptr += sum + sum1 + sum2 + sum3 + sum4 + sum5 + sum6 + sum7;
+                *outptr = saturate2int16((int)(*outptr) + sum + sum1 + sum2 + sum3 + sum4 + sum5 + sum6 + sum7);
 
                 r0++;
                 r1++;
@@ -5157,7 +5197,7 @@ static void conv1x1s1_int8_e2e_neon(const Mat &bottom_blob, Mat &top_blob, const
             {
                 short sum = (short)*r0 * k0;
 
-                *outptr += sum;
+                *outptr = saturate2int16((int)(*outptr) + sum);
 
                 r0++;
                 outptr++;

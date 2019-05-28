@@ -409,14 +409,25 @@ int ConvolutionDepthWise_arm::forward(const Mat& bottom_blob, Mat& top_blob, con
     {
         if (kernel_w == 3 && kernel_h == 3 && dilation_w == 1 && dilation_h == 1)
         {
+#if DEBUG_TIME 
+            start = get_current_time();
+#endif             
             if (stride_w == 1 && stride_h == 1)
             {
                 convdw3x3s1_neon(bottom_blob_bordered, top_blob, weight_data, bias_data, opt);
+#if DEBUG_TIME                 
+                end = get_current_time();
+                printf("conv       : %8.3f ms\n", end - start);
+#endif                 
                 return 0;
             }
             else if (stride_w == 2 && stride_h == 2)
             {
                 convdw3x3s2_neon(bottom_blob_bordered, top_blob, weight_data, bias_data, opt);
+#if DEBUG_TIME                 
+                end = get_current_time();
+                printf("conv       : %8.3f ms\n", end - start);
+#endif                   
                 return 0;
             }
         }

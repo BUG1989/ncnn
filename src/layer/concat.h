@@ -23,10 +23,12 @@ class Concat : public Layer
 {
 public:
     Concat();
+    ~Concat();
 
     virtual int load_param(const ParamDict& pd);
 
     virtual int forward(const std::vector<Mat>& bottom_blobs, std::vector<Mat>& top_blobs, const Option& opt) const;
+    virtual int forward_int8(const std::vector<Mat>& bottom_blobs, std::vector<Mat>& top_blobs, const Option& opt) const;
 
 #if NCNN_VULKAN
     virtual int create_pipeline();
@@ -44,6 +46,9 @@ public:
     Pipeline* pipeline_concat_pack4to1[2];
 #endif // NCNN_VULKAN
 
+    bool use_int8_inference;
+    float top_blob_int8_scale;
+    std::vector<float> bottom_blob_int8_scales;
 };
 
 } // namespace ncnn

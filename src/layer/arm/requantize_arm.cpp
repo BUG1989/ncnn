@@ -140,7 +140,7 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
         int channels = bottom_blob.c;
         int size = w * h;      
 
-        double scale_fuse = scale_in * scale_out;
+        float scale_fuse = scale_in * scale_out;
 
         if (bias_term)
         {
@@ -336,8 +336,8 @@ int Requantize_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                     "vcvt.f32.s32 q0, q0            \n" 
                     "vcvt.f32.s32 q1, q1            \n"
                     // top_f32 = top_f32 * scale_out
-                    "vmul.f32   q0, q0, q10         \n"
-                    "vmul.f32   q1, q1, q10         \n"
+                    "vmul.f32   q0, q0, %q6         \n"
+                    "vmul.f32   q1, q1, %q6         \n"
                     // top_f32 -> top_s32
                     "vcvtr.s32.f32 s0, s0           \n"
                     "vcvtr.s32.f32 s1, s1           \n"

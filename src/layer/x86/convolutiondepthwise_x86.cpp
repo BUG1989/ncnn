@@ -209,6 +209,10 @@ int ConvolutionDepthWise_x86::forward(const Mat& bottom_blob, Mat& top_blob, con
     // int8
     if (use_int8_inference)
     {
+#if DEBUG_FEATURE
+        extract_feature_in_s8(0, this->name.c_str(), bottom_blob_bordered);
+        extract_kernel_dw_s8(0, this->name.c_str(), weight_data, bias_data, num_output, group, kernel_w);
+#endif         
         if (use_int8_requantize)
         {
             Mat top_blob_tm;

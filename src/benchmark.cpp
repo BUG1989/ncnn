@@ -67,9 +67,14 @@ double get_current_time()
 float conv3x3s1 = 0;
 float conv3x3s2 = 0;
 float conv1x1s1 = 0;
+float conv1x1s2 = 0;
+float dwconv3x3s1 = 0;
+float dwconv3x3s2 = 0;
 float deconv = 0;
 float relu = 0;
 float eltwise = 0;
+float pool = 0;
+float concat = 0;
 
 void benchmark(const Layer* layer, double start, double end)
 {
@@ -81,6 +86,11 @@ void benchmark(const Layer* layer, double start, double end)
         eltwise += end - start;
         fprintf(stderr, "   %8.2lfms", eltwise);
     }    
+    else if (layer->type == "Concat")
+    {
+        concat += end - start;
+        fprintf(stderr, "   %8.2lfms", concat);
+    }     
 
     fprintf(stderr, "\n");
 }
@@ -100,6 +110,11 @@ void benchmark(const Layer* layer, const Mat& bottom_blob, Mat& top_blob, double
         relu += end - start;
         fprintf(stderr, "   %8.2lfms", relu);
     }    
+    if (layer->type == "Pooling")
+    {
+        pool += end - start;
+        fprintf(stderr, "   %8.2lfms", pool);
+    }        
     if (layer->type == "Convolution")
     {
         double op = (double)top_blob.w*top_blob.h*top_blob.c*bottom_blob.c*((Convolution*)layer)->kernel_w*((Convolution*)layer)->kernel_h*2;
@@ -126,7 +141,12 @@ void benchmark(const Layer* layer, const Mat& bottom_blob, Mat& top_blob, double
         {
             conv1x1s1 += end - start;
             fprintf(stderr, "   %8.2lfms", conv1x1s1);
-        }                    
+        }      
+        if (((Convolution*)layer)->kernel_w == 1 && ((Convolution*)layer)->stride_w == 2)
+        {
+            conv1x1s2 += end - start;
+            fprintf(stderr, "   %8.2lfms", conv1x1s2);
+        }                         
     }
     if (layer->type == "ConvolutionDepthWise")
     {
@@ -142,6 +162,17 @@ void benchmark(const Layer* layer, const Mat& bottom_blob, Mat& top_blob, double
                 ((ConvolutionDepthWise*)layer)->stride_h,
                 Gops
         );      
+
+        if (((ConvolutionDepthWise*)layer)->kernel_w == 3 && ((ConvolutionDepthWise*)layer)->stride_w == 1)
+        {
+            dwconv3x3s1 += end - start;
+            fprintf(stderr, "   %8.2lfms", dwconv3x3s1);
+        }  
+        if (((ConvolutionDepthWise*)layer)->kernel_w == 3 && ((ConvolutionDepthWise*)layer)->stride_w == 2)
+        {
+            dwconv3x3s2 += end - start;
+            fprintf(stderr, "   %8.2lfms", dwconv3x3s2);
+        }        
     }
     fprintf(stderr, "\n");  
 }

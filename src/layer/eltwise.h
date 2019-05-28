@@ -1,6 +1,7 @@
 // Tencent is pleased to support the open source community by making ncnn available.
 //
-// Copyright (C) 2017 THL A29 Limited, a Tencent company. All rights reserved.
+// Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
+// Copyright (C) 2019 BUG1989. All rights reserved.
 //
 // Licensed under the BSD 3-Clause License (the "License"); you may not use this file except
 // in compliance with the License. You may obtain a copy of the License at
@@ -23,10 +24,14 @@ class Eltwise : public Layer
 {
 public:
     Eltwise();
+    ~Eltwise();
 
     virtual int load_param(const ParamDict& pd);
 
     virtual int forward(const std::vector<Mat>& bottom_blobs, std::vector<Mat>& top_blobs, const Option& opt) const;
+    virtual int forward_quant(const std::vector<Mat>& bottom_blobs, std::vector<Mat>& top_blobs, const Option& opt) const;
+    virtual int forward_dequant(const std::vector<Mat>& bottom_blobs, std::vector<Mat>& top_blobs, const Option& opt) const;
+
 #if NCNN_VULKAN
     virtual int create_pipeline();
     virtual int destroy_pipeline();
@@ -45,6 +50,11 @@ public:
     Pipeline* pipeline_eltwise[2];
     Pipeline* pipeline_eltwise_pack4[2];
 #endif // NCNN_VULKAN
+
+    bool use_int8_inference;
+    bool use_dequant;
+    float top_blob_int8_scale;
+    std::vector<float> bottom_blob_int8_scales;
 };
 
 } // namespace ncnn

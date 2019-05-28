@@ -490,8 +490,10 @@ static void conv_im2col_sgemm_int8_e2e_sse(const Mat &bottom_blob, Mat &top_blob
 
     const signed char *kernel = _kernel;
 
-    // int count_overflow = 0;
-    // int count_result = 0;      
+#if DEBUG_OVERFLOW
+    int count_overflow = 0;
+    int count_result = 0;     
+#endif     
 
     // im2row
     Mat bottom_im2row(kernel_h*kernel_w*inch, outw*outh, 1UL, opt.workspace_allocator);
@@ -522,7 +524,7 @@ static void conv_im2col_sgemm_int8_e2e_sse(const Mat &bottom_blob, Mat &top_blob
         }
     }    
 
-
+#if 0
     int kernel_size = kernel_w * kernel_h;
 
     // kernel memory packed 4
@@ -720,11 +722,6 @@ static void conv_im2col_sgemm_int8_e2e_sse(const Mat &bottom_blob, Mat &top_blob
                     sum_tmp3 += (short)va[6] * vb[6];
                     sum_tmp3 += (short)va[7] * vb[7];
 
-                    // sum_tmp0 = (sum_tmp0 + 1) >> 1;
-                    // sum_tmp1 = (sum_tmp1 + 1) >> 1;
-                    // sum_tmp2 = (sum_tmp2 + 1) >> 1;
-                    // sum_tmp3 = (sum_tmp3 + 1) >> 1;
-
                     sum0 = saturate2int16((int)(sum0) + sum_tmp0);
                     sum1 = saturate2int16((int)(sum1) + sum_tmp1);
                     sum2 = saturate2int16((int)(sum2) + sum_tmp2);
@@ -745,11 +742,6 @@ static void conv_im2col_sgemm_int8_e2e_sse(const Mat &bottom_blob, Mat &top_blob
                     sum_tmp1 += (short)va[1] * vb[0];
                     sum_tmp2 += (short)va[2] * vb[0];
                     sum_tmp3 += (short)va[3] * vb[0];
-
-                    // sum_tmp0 = (sum_tmp0 + 1) >> 1;
-                    // sum_tmp1 = (sum_tmp1 + 1) >> 1;
-                    // sum_tmp2 = (sum_tmp2 + 1) >> 1;
-                    // sum_tmp3 = (sum_tmp3 + 1) >> 1;
 
                     sum0 = saturate2int16((int)(sum0) + sum_tmp0);
                     sum1 = saturate2int16((int)(sum1) + sum_tmp1);
@@ -798,7 +790,6 @@ static void conv_im2col_sgemm_int8_e2e_sse(const Mat &bottom_blob, Mat &top_blob
                     sum_tp += (short)va[6] * vb[6];
                     sum_tp += (short)va[7] * vb[7];
 
-                    // sum_tp = (sum_tp + 1) >> 1;
                     sum = saturate2int16((int)(sum) + sum_tp);
 
                     va += 8;
@@ -810,7 +801,6 @@ static void conv_im2col_sgemm_int8_e2e_sse(const Mat &bottom_blob, Mat &top_blob
                     short sum_tmp = 0;
                     sum_tmp += (short)va[0] * vb[0];
 
-                    // sum_tmp = (sum_tmp + 1) >> 1;
                     sum = saturate2int16((int)(sum) + sum_tmp);
 
                     va += 1;
@@ -823,19 +813,16 @@ static void conv_im2col_sgemm_int8_e2e_sse(const Mat &bottom_blob, Mat &top_blob
             }
         }
     }
-
-#if 0
-    int M = outch;                      // outch
-    int N = outw * outh;                // outsize or out stride
-    int K = kernel_w * kernel_h * inch; // ksize * inch
-
+#else
     // sgemm(int M, int N, int K, float* A, float* B, float* C)
     {
+        int M = outch;  // outch
+        int N = outw * outh; // outsize or out stride
+        int K = kernel_w * kernel_h * inch; // ksize * inch
+
         for (int i=0; i<M; i++)
         {
-            float* output = top_blob.channel(i);
-            const float bias0 = bias ? bias[i] : 0.f;
-            const float scale_dequant0 = scale_dequant[i] * 2.0;               
+            short* output = top_blob.channel(i);          
 
             for (int j=0; j<N; j++)
             {
@@ -848,6 +835,18 @@ static void conv_im2col_sgemm_int8_e2e_sse(const Mat &bottom_blob, Mat &top_blob
 
                 for (; k+7<K; k=k+8)
                 {
+#if DEBUG_OVERFLOW
+                    int sum_tp = 0;
+                    sum_tp += (int)va[0] * vb[0];
+                    sum_tp += (int)va[1] * vb[1];
+                    sum_tp += (int)va[2] * vb[2];
+                    sum_tp += (int)va[3] * vb[3];
+                    sum_tp += (int)va[4] * vb[4];
+                    sum_tp += (int)va[5] * vb[5];
+                    sum_tp += (int)va[6] * vb[6];
+                    sum_tp += (int)va[7] * vb[7];
+                    check_overflow(sum_tp, count_overflow, count_result);
+#else
                     short sum_tp = 0;
                     sum_tp += (short)va[0] * vb[0];
                     sum_tp += (short)va[1] * vb[1];
@@ -856,9 +855,8 @@ static void conv_im2col_sgemm_int8_e2e_sse(const Mat &bottom_blob, Mat &top_blob
                     sum_tp += (short)va[4] * vb[4];
                     sum_tp += (short)va[5] * vb[5];
                     sum_tp += (short)va[6] * vb[6];
-                    sum_tp += (short)va[7] * vb[7];
-
-                    sum_tp = (sum_tp + 1) >> 1;
+                    sum_tp += (short)va[7] * vb[7];                    
+#endif
                     sum = saturate2int16((int)(sum) + sum_tp);
 
                     va += 8;
@@ -867,96 +865,33 @@ static void conv_im2col_sgemm_int8_e2e_sse(const Mat &bottom_blob, Mat &top_blob
 
                 for (; k<K; k++)
                 {
+#if DEBUG_OVERFLOW
+                    int sum_tp = 0;
+                    sum_tp += (int)va[0] * vb[0];
+                    check_overflow(sum_tp, count_overflow, count_result);
+#else                    
                     short sum_tp = 0;
                     sum_tp += (short)va[0] * vb[0];
-
-                    sum_tp = (sum_tp + 1) >> 1;
+#endif                    
                     sum = saturate2int16((int)(sum) + sum_tp);
 
                     va += 1;
                     vb += 1;
                 }
 
-                // dequant convert int32 to fp32
-                output[0] = (float)sum * scale_dequant0 + bias0;
+                // save to int16
+                output[0] = sum;
 
                 output++;
             }
         }
     }
-#endif    
-
-    // sgemm(int M, int N, int K, float* A, float* B, float* C)
-//     {
-//         for (int i=0; i<M; i++)
-//         {
-//             float* output = top_blob.channel(i);
-//             const float bias0 = bias ? bias[i] : 0.f;
-//             const float scale_dequant0 = scale_dequant[i];               
-
-//             for (int j=0; j<N; j++)
-//             {
-//                 short sum = 0;
-
-//                 signed char* vb = (signed char*)bottom_im2row + K * j;
-//                 const signed char* va = kernel + K * i;
-
-//                 int k = 0;
-
-//                 for (; k+7<K; k=k+8)
-//                 {
-// #if 1
-//                     short sum_tp = 0;
-//                     sum_tp += (short)va[0] * vb[0];
-//                     sum_tp += (short)va[1] * vb[1];
-//                     sum_tp += (short)va[2] * vb[2];
-//                     sum_tp += (short)va[3] * vb[3];
-//                     sum_tp += (short)va[4] * vb[4];
-//                     sum_tp += (short)va[5] * vb[5];
-//                     sum_tp += (short)va[6] * vb[6];
-//                     sum_tp += (short)va[7] * vb[7];
-// #else
-//                     int sum_tp = 0;
-//                     sum_tp += (int)va[0] * vb[0];
-//                     sum_tp += (int)va[1] * vb[1];
-//                     sum_tp += (int)va[2] * vb[2];
-//                     sum_tp += (int)va[3] * vb[3];
-//                     sum_tp += (int)va[4] * vb[4];
-//                     sum_tp += (int)va[5] * vb[5];
-//                     sum_tp += (int)va[6] * vb[6];
-//                     sum_tp += (int)va[7] * vb[7];
-//                     check_overflow(sum_tp, count_overflow, count_result);
-// #endif
-
-//                     sum_tp = (sum_tp + 1) >> 1;
-//                     sum = saturate2int16((int)(sum) + sum_tp);
-
-//                     va += 8;
-//                     vb += 8;
-//                 }
-
-//                 for (; k<K; k++)
-//                 {
-//                     short sum_tp = 0;
-//                     sum_tp += (short)va[0] * vb[0];
-
-//                     sum_tp = (sum_tp + 1) >> 1;
-//                     sum = saturate2int16((int)(sum) + sum_tp);
-
-//                     va += 1;
-//                     vb += 1;
-//                 }
-
-//                 // dequant convert int32 to fp32
-//                 output[0] = (float)sum * scale_dequant0 + bias0;
-
-//                 output++;
-//             }
-//         }
-//     }
-
-    // if (count_overflow)
-    //     printf("overflow : %d, all : %d, error rate : %.3f\n", count_overflow, count_result, (float)count_overflow / count_result * 100);       
+#if DEBUG_OVERFLOW
+    if (count_overflow)
+        printf("overflow : %d, all : %d, error rate : %.3f\n", count_overflow, count_result, (float)count_overflow / count_result * 100);  
+#endif
+           
+#endif          
 }
 #if 0
 static void conv_im2col_sgemm_int8_dequant_sse(const Mat &bottom_blob, Mat &top_blob, const Mat &_kernel, \
@@ -1453,7 +1388,7 @@ static void conv_im2col_sgemm_int8_dequant_sse(const Mat &bottom_blob, Mat &top_
         }
     }    
 
-
+#if 1
     int kernel_size = kernel_w * kernel_h;
 
     // kernel memory packed 4
@@ -1661,11 +1596,6 @@ static void conv_im2col_sgemm_int8_dequant_sse(const Mat &bottom_blob, Mat &top_
                     sum_tmp3 += (short)va[6] * vb[6];
                     sum_tmp3 += (short)va[7] * vb[7];
 
-                    // sum_tmp0 = (sum_tmp0 + 1) >> 1;
-                    // sum_tmp1 = (sum_tmp1 + 1) >> 1;
-                    // sum_tmp2 = (sum_tmp2 + 1) >> 1;
-                    // sum_tmp3 = (sum_tmp3 + 1) >> 1;
-
                     sum0 = saturate2int16((int)(sum0) + sum_tmp0);
                     sum1 = saturate2int16((int)(sum1) + sum_tmp1);
                     sum2 = saturate2int16((int)(sum2) + sum_tmp2);
@@ -1686,11 +1616,6 @@ static void conv_im2col_sgemm_int8_dequant_sse(const Mat &bottom_blob, Mat &top_
                     sum_tmp1 += (short)va[1] * vb[0];
                     sum_tmp2 += (short)va[2] * vb[0];
                     sum_tmp3 += (short)va[3] * vb[0];
-
-                    // sum_tmp0 = (sum_tmp0 + 1) >> 1;
-                    // sum_tmp1 = (sum_tmp1 + 1) >> 1;
-                    // sum_tmp2 = (sum_tmp2 + 1) >> 1;
-                    // sum_tmp3 = (sum_tmp3 + 1) >> 1;
 
                     sum0 = saturate2int16((int)(sum0) + sum_tmp0);
                     sum1 = saturate2int16((int)(sum1) + sum_tmp1);
@@ -1742,7 +1667,6 @@ static void conv_im2col_sgemm_int8_dequant_sse(const Mat &bottom_blob, Mat &top_
                     sum_tp += (short)va[6] * vb[6];
                     sum_tp += (short)va[7] * vb[7];
 
-                    // sum_tp = (sum_tp + 1) >> 1;
                     sum = saturate2int16((int)(sum) + sum_tp);
 
                     va += 8;
@@ -1754,7 +1678,6 @@ static void conv_im2col_sgemm_int8_dequant_sse(const Mat &bottom_blob, Mat &top_
                     short sum_tmp = 0;
                     sum_tmp += (short)va[0] * vb[0];
 
-                    // sum_tmp = (sum_tmp + 1) >> 1;
                     sum = saturate2int16((int)(sum) + sum_tmp);
 
                     va += 1;
@@ -1767,19 +1690,14 @@ static void conv_im2col_sgemm_int8_dequant_sse(const Mat &bottom_blob, Mat &top_
             }
         }
     }
-
-#if 0
-    int M = outch;                      // outch
-    int N = outw * outh;                // outsize or out stride
-    int K = kernel_w * kernel_h * inch; // ksize * inch
-
+#else
     // sgemm(int M, int N, int K, float* A, float* B, float* C)
     {
         for (int i=0; i<M; i++)
         {
             float* output = top_blob.channel(i);
             const float bias0 = bias ? bias[i] : 0.f;
-            const float scale_dequant0 = scale_dequant[i] * 2.0;               
+            const float scale_dequant0 = scale_dequant[i];               
 
             for (int j=0; j<N; j++)
             {
@@ -1792,6 +1710,7 @@ static void conv_im2col_sgemm_int8_dequant_sse(const Mat &bottom_blob, Mat &top_
 
                 for (; k+7<K; k=k+8)
                 {
+#if 0
                     short sum_tp = 0;
                     sum_tp += (short)va[0] * vb[0];
                     sum_tp += (short)va[1] * vb[1];
@@ -1801,8 +1720,18 @@ static void conv_im2col_sgemm_int8_dequant_sse(const Mat &bottom_blob, Mat &top_
                     sum_tp += (short)va[5] * vb[5];
                     sum_tp += (short)va[6] * vb[6];
                     sum_tp += (short)va[7] * vb[7];
-
-                    sum_tp = (sum_tp + 1) >> 1;
+#else
+                    int sum_tp = 0;
+                    sum_tp += (int)va[0] * vb[0];
+                    sum_tp += (int)va[1] * vb[1];
+                    sum_tp += (int)va[2] * vb[2];
+                    sum_tp += (int)va[3] * vb[3];
+                    sum_tp += (int)va[4] * vb[4];
+                    sum_tp += (int)va[5] * vb[5];
+                    sum_tp += (int)va[6] * vb[6];
+                    sum_tp += (int)va[7] * vb[7];
+                    check_overflow(sum_tp, count_overflow, count_result);
+#endif
                     sum = saturate2int16((int)(sum) + sum_tp);
 
                     va += 8;
@@ -1813,8 +1742,6 @@ static void conv_im2col_sgemm_int8_dequant_sse(const Mat &bottom_blob, Mat &top_
                 {
                     short sum_tp = 0;
                     sum_tp += (short)va[0] * vb[0];
-
-                    sum_tp = (sum_tp + 1) >> 1;
                     sum = saturate2int16((int)(sum) + sum_tp);
 
                     va += 1;
@@ -1828,79 +1755,10 @@ static void conv_im2col_sgemm_int8_dequant_sse(const Mat &bottom_blob, Mat &top_
             }
         }
     }
-#endif    
 
-    // sgemm(int M, int N, int K, float* A, float* B, float* C)
-//     {
-//         for (int i=0; i<M; i++)
-//         {
-//             float* output = top_blob.channel(i);
-//             const float bias0 = bias ? bias[i] : 0.f;
-//             const float scale_dequant0 = scale_dequant[i];               
-
-//             for (int j=0; j<N; j++)
-//             {
-//                 short sum = 0;
-
-//                 signed char* vb = (signed char*)bottom_im2row + K * j;
-//                 const signed char* va = kernel + K * i;
-
-//                 int k = 0;
-
-//                 for (; k+7<K; k=k+8)
-//                 {
-// #if 1
-//                     short sum_tp = 0;
-//                     sum_tp += (short)va[0] * vb[0];
-//                     sum_tp += (short)va[1] * vb[1];
-//                     sum_tp += (short)va[2] * vb[2];
-//                     sum_tp += (short)va[3] * vb[3];
-//                     sum_tp += (short)va[4] * vb[4];
-//                     sum_tp += (short)va[5] * vb[5];
-//                     sum_tp += (short)va[6] * vb[6];
-//                     sum_tp += (short)va[7] * vb[7];
-// #else
-//                     int sum_tp = 0;
-//                     sum_tp += (int)va[0] * vb[0];
-//                     sum_tp += (int)va[1] * vb[1];
-//                     sum_tp += (int)va[2] * vb[2];
-//                     sum_tp += (int)va[3] * vb[3];
-//                     sum_tp += (int)va[4] * vb[4];
-//                     sum_tp += (int)va[5] * vb[5];
-//                     sum_tp += (int)va[6] * vb[6];
-//                     sum_tp += (int)va[7] * vb[7];
-//                     check_overflow(sum_tp, count_overflow, count_result);
-// #endif
-
-//                     sum_tp = (sum_tp + 1) >> 1;
-//                     sum = saturate2int16((int)(sum) + sum_tp);
-
-//                     va += 8;
-//                     vb += 8;
-//                 }
-
-//                 for (; k<K; k++)
-//                 {
-//                     short sum_tp = 0;
-//                     sum_tp += (short)va[0] * vb[0];
-
-//                     sum_tp = (sum_tp + 1) >> 1;
-//                     sum = saturate2int16((int)(sum) + sum_tp);
-
-//                     va += 1;
-//                     vb += 1;
-//                 }
-
-//                 // dequant convert int32 to fp32
-//                 output[0] = (float)sum * scale_dequant0 + bias0;
-
-//                 output++;
-//             }
-//         }
-//     }
-
-    // if (count_overflow)
-    //     printf("overflow : %d, all : %d, error rate : %.3f\n", count_overflow, count_result, (float)count_overflow / count_result * 100);       
+    if (count_overflow)
+        printf("overflow : %d, all : %d, error rate : %.3f\n", count_overflow, count_result, (float)count_overflow / count_result * 100); 
+#endif          
 }
 #endif
 

@@ -44,7 +44,7 @@ int Convolution_x86::load_param(const ParamDict& pd)
         int num_input = weight_data_size / 9 / num_output;
         // winograd is slow on small channel count
         if(num_input >= 16 && num_output >= 16)
-            use_winograd3x3 = true;
+            use_winograd3x3 = false;
     }           
 
     return 0;
@@ -328,10 +328,15 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     int h = bottom_blob.h;
     int channels = bottom_blob.c;
     size_t elemsize = bottom_blob.elemsize;
-
+#if DEBUG_TIME  
+    double start, end;
+#endif  
     Mat bottom_blob_unbordered = bottom_blob;
     if (use_int8_inference && elemsize != 1)
     {
+#if DEBUG_TIME         
+        start = get_current_time();
+#endif         
         Mat bottom_blob_int8;
         bottom_blob_int8.create(w, h, channels, (size_t)1u, opt.workspace_allocator);
         if (bottom_blob_int8.empty())
@@ -346,6 +351,10 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
         }
 
         bottom_blob_unbordered = bottom_blob_int8;
+#if DEBUG_TIME 
+        end = get_current_time();
+        printf("quantize   : %8.3f ms\n", end - start);
+#endif           
     }
 
     Mat bottom_blob_bordered = bottom_blob_unbordered;
@@ -375,15 +384,19 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
 
     int outw = (w - kernel_size) / stride + 1;
     int outh = (h - kernel_size) / stride + 1;
-
+ 
     // int8
     if (use_int8_inference)
-    {
+    {    
 #if DEBUG_FEATURE
         extract_feature_in_s8(0, this->name.c_str(), bottom_blob_bordered);
+        extract_kernel_s8(0, this->name.c_str(), weight_data, bias_data, bottom_blob.c, num_output, kernel_size);
 #endif 
         if (use_int8_requantize == true)
-        {           
+        {       
+#if DEBUG_TIME  
+            start = get_current_time();
+#endif                 
             Mat top_blob_tm;
             top_blob_tm.create(outw, outh, num_output, (size_t)4u, opt.workspace_allocator);
             if (top_blob_tm.empty())
@@ -398,11 +411,19 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
                 // conv3x3s1_winograd23_int8_sse(bottom_blob_bordered, top_blob_tm, weight_3x3_winograd23_data, opt);
                 // conv3x3s1_winograd43_int8_sse(bottom_blob_bordered, top_blob_tm, weight_3x3_winograd23_data, opt);
                 conv3x3s1_winograd43_requant_int8_sse(bottom_blob_bordered, top_blob, weight_3x3_winograd23_data, bias_data, requantize_scales, opt);
+#if DEBUG_TIME                 
+                end = get_current_time();
+                printf("conv       : %8.3f ms\n", end - start);
+#endif                       
                 return 0;
             }
             else
                 conv_int8_e2e(bottom_blob_bordered, top_blob_tm, weight_data, opt);
-
+#if DEBUG_TIME
+            end = get_current_time();
+            printf("conv       : %8.3f ms\n", end - start);
+            start = get_current_time();
+#endif    
 #if DEBUG_FEATURE
             extract_feature_blob_s16("D_Out_S16", this->name.c_str(), top_blob_tm);
 #endif   
@@ -418,10 +439,17 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
                 Mat top_blob_tm_g = top_blob_tm.channel_range(p, 1);
                 Mat top_blob_g = top_blob.channel_range(p, 1);
                 requantize_ops[p]->forward(top_blob_tm_g, top_blob_g, opt_g);
-            }                
+            }     
+#if DEBUG_TIME 
+            end = get_current_time();
+            printf("requantize : %8.3f ms\n", end - start);
+#endif                          
         }
         else
         {
+#if DEBUG_TIME
+            start = get_current_time();
+#endif                 
             top_blob.create(outw, outh, num_output, (size_t)4u, opt.blob_allocator);
             if (top_blob.empty())
                 return -100;
@@ -431,6 +459,10 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
                 // conv3x3s1_winograd23_int8_sse(bottom_blob_bordered, top_blob, weight_3x3_winograd23_data, opt);
                 // conv3x3s1_winograd43_int8_sse(bottom_blob_bordered, top_blob, weight_3x3_winograd23_data, opt);
                 conv3x3s1_winograd43_dequant_int8_sse(bottom_blob_bordered, top_blob, weight_3x3_winograd23_data, bias_data, dequantize_scales, opt);
+#if DEBUG_TIME                 
+                end = get_current_time();
+                printf("conv       : %8.3f ms\n", end - start);
+#endif                       
                 return 0;
             }
             else
@@ -439,7 +471,11 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
 #if DEBUG_FEATURE
             extract_feature_blob_s16("D_Out_S16", this->name.c_str(), top_blob);
 #endif   
-
+#if DEBUG_TIME
+            end = get_current_time();
+            printf("conv       : %8.3f ms\n", end - start);
+            start = get_current_time();
+#endif    
             // dequantize, reverse scale inplace
             #pragma omp parallel for num_threads(opt.num_threads)
             for (int p=0; p<num_output; p++)
@@ -450,7 +486,14 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
 
                 Mat top_blob_g = top_blob.channel_range(p, 1);
                 dequantize_ops[p]->forward_inplace(top_blob_g, opt_g);
-            }                
+            }
+#if DEBUG_TIME 
+            end = get_current_time();
+            printf("dequantize : %8.3f ms\n", end - start);
+#endif         
+#if DEBUG_FEATURE
+            extract_feature_out_f32(0, this->name.c_str(), top_blob);
+#endif            
         }
 
         return 0;

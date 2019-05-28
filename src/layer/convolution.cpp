@@ -26,6 +26,8 @@ Convolution::Convolution()
     support_inplace = false;
     support_vulkan = true;
     use_int8_requantize = false;
+    bottom_blob_int8_scale = 0;
+    top_blob_int8_scale = 0;
 
 #if NCNN_VULKAN
     padding = 0;

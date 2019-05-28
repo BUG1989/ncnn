@@ -28,6 +28,8 @@ public:
     virtual int load_param(const ParamDict& pd);
 
     virtual int forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) const;
+    virtual int forward_quant(const Mat& bottom_blob, Mat& top_blob, const Option& opt) const;
+    virtual int forward_dequant(const Mat& bottom_blob, Mat& top_blob, const Option& opt) const;
 
 #if NCNN_VULKAN
     virtual int create_pipeline();
@@ -61,6 +63,9 @@ public:
     Pipeline* pipeline_pooling_global_pack4;
 #endif // NCNN_VULKAN
 
+    bool use_int8_inference;
+    float top_blob_int8_scale;
+    float bottom_blob_int8_scale;
 };
 
 } // namespace ncnn
