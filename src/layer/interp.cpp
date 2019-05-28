@@ -23,17 +23,6 @@ Interp::Interp()
 {
     one_blob_only = true;
     support_inplace = false;
-    support_vulkan = true;
-
-#if NCNN_VULKAN
-    pipeline_interp = 0;
-    pipeline_interp_pack4 = 0;
-
-    pipeline_interp_bicubic_coeffs_x = 0;
-    pipeline_interp_bicubic_coeffs_y = 0;
-    pipeline_interp_bicubic = 0;
-    pipeline_interp_bicubic_pack4 = 0;
-#endif // NCNN_VULKAN
 }
 
 int Interp::load_param(const ParamDict& pd)
@@ -47,31 +36,14 @@ int Interp::load_param(const ParamDict& pd)
     return 0;
 }
 
-static void resize_bilinear_image(const Mat& src, Mat& dst)
+static void linear_coeffs(int w, int outw, int* xofs, float* alpha)
 {
-    int w = dst.w;
-    int h = dst.h;
+    double scale = (double)w / outw;
 
-    double scale_x = (double)src.w / w;
-    double scale_y = (double)src.h / h;
-
-    int* buf = new int[w + h + w*2 + h*2];
-
-    int* xofs = buf;//new int[w];
-    int* yofs = buf + w;//new int[h];
-
-    float* alpha = (float*)(buf + w + h);//new float[w * 2];
-    float* beta = (float*)(buf + w + h + w*2);//new float[h * 2];
-
-    float fx;
-    float fy;
-    int sx;
-    int sy;
-
-    for (int dx = 0; dx < w; dx++)
+    for (int dx = 0; dx < outw; dx++)
     {
-        fx = (float)((dx + 0.5) * scale_x - 0.5);
-        sx = floor(fx);
+        float fx = (float)((dx + 0.5) * scale - 0.5);
+        int sx = floor(fx);
         fx -= sx;
 
         if (sx < 0)
@@ -79,9 +51,9 @@ static void resize_bilinear_image(const Mat& src, Mat& dst)
             sx = 0;
             fx = 0.f;
         }
-        if (sx >= src.w - 1)
+        if (sx >= w - 1)
         {
-            sx = src.w - 2;
+            sx = w - 2;
             fx = 1.f;
         }
 
@@ -90,29 +62,12 @@ static void resize_bilinear_image(const Mat& src, Mat& dst)
         alpha[dx*2    ] = 1.f - fx;
         alpha[dx*2 + 1] = fx;
     }
+}
 
-    for (int dy = 0; dy < h; dy++)
-    {
-        fy = (float)((dy + 0.5) * scale_y - 0.5);
-        sy = floor(fy);
-        fy -= sy;
-
-        if (sy < 0)
-        {
-            sy = 0;
-            fy = 0.f;
-        }
-        if (sy >= src.h - 1)
-        {
-            sy = src.h - 2;
-            fy = 1.f;
-        }
-
-        yofs[dy] = sy;
-
-        beta[dy*2    ] = 1.f - fy;
-        beta[dy*2 + 1] = fy;
-    }
+static void resize_bilinear_image(const Mat& src, Mat& dst, float* alpha, int* xofs, float* beta, int* yofs)
+{
+    int w = dst.w;
+    int h = dst.h;
 
     // loop body
     Mat rowsbuf0(w);
@@ -193,8 +148,6 @@ static void resize_bilinear_image(const Mat& src, Mat& dst)
 
         beta += 2;
     }
-
-    delete[] buf;
 }
 
 static inline void interpolate_cubic(float fx, float* coeffs)
@@ -212,31 +165,14 @@ static inline void interpolate_cubic(float fx, float* coeffs)
     coeffs[3] = 1.f - coeffs[0] - coeffs[1] - coeffs[2];
 }
 
-static void resize_bicubic_image(const Mat& src, Mat& dst)
+static void cubic_coeffs(int w, int outw, int* xofs, float* alpha)
 {
-    int w = dst.w;
-    int h = dst.h;
+    double scale = (double)w / outw;
 
-    double scale_x = (double)src.w / w;
-    double scale_y = (double)src.h / h;
-
-    int* buf = new int[w + h + w*4 + h*4];
-
-    int* xofs = buf;//new int[w];
-    int* yofs = buf + w;//new int[h];
-
-    float* alpha = (float*)(buf + w + h);//new float[w * 4];
-    float* beta = (float*)(buf + w + h + w*4);//new float[h * 4];
-
-    float fx;
-    float fy;
-    int sx;
-    int sy;
-
-    for (int dx = 0; dx < w; dx++)
+    for (int dx = 0; dx < outw; dx++)
     {
-        fx = (float)((dx + 0.5) * scale_x - 0.5);
-        sx = floor(fx);
+        float fx = (float)((dx + 0.5) * scale - 0.5);
+        int sx = floor(fx);
         fx -= sx;
 
         interpolate_cubic(fx, alpha + dx*4);
@@ -257,17 +193,17 @@ static void resize_bicubic_image(const Mat& src, Mat& dst)
             alpha[dx*4 +2] = alpha[dx*4 +3];
             alpha[dx*4 +3] = 0.f;
         }
-        if (sx == src.w - 2)
+        if (sx == w - 2)
         {
-            sx = src.w - 3;
+            sx = w - 3;
             alpha[dx*4 +3] = alpha[dx*4 +2] + alpha[dx*4 +3];
             alpha[dx*4 +2] = alpha[dx*4 +1];
             alpha[dx*4 +1] = alpha[dx*4 +0];
             alpha[dx*4 +0] = 0.f;
         }
-        if (sx >= src.w - 1)
+        if (sx >= w - 1)
         {
-            sx = src.w - 3;
+            sx = w - 3;
             alpha[dx*4 +3] = 1.f - alpha[dx*4 +0];
             alpha[dx*4 +2] = alpha[dx*4 +0];
             alpha[dx*4 +1] = 0.f;
@@ -276,50 +212,12 @@ static void resize_bicubic_image(const Mat& src, Mat& dst)
 
         xofs[dx] = sx;
     }
+}
 
-    for (int dy = 0; dy < h; dy++)
-    {
-        fy = (float)((dy + 0.5) * scale_y - 0.5);
-        sy = floor(fy);
-        fy -= sy;
-
-        interpolate_cubic(fy, beta + dy*4);
-
-        if (sy <= -1)
-        {
-            sy = 1;
-            beta[dy*4 +0] = 1.f - beta[dy*4 +3];
-            beta[dy*4 +1] = beta[dy*4 +3];
-            beta[dy*4 +2] = 0.f;
-            beta[dy*4 +3] = 0.f;
-        }
-        if (sy == 0)
-        {
-            sy = 1;
-            beta[dy*4 +0] = beta[dy*4 +0] + beta[dy*4 +1];
-            beta[dy*4 +1] = beta[dy*4 +2];
-            beta[dy*4 +2] = beta[dy*4 +3];
-            beta[dy*4 +3] = 0.f;
-        }
-        if (sy == src.h - 2)
-        {
-            sy = src.h - 3;
-            beta[dy*4 +3] = beta[dy*4 +2] + beta[dy*4 +3];
-            beta[dy*4 +2] = beta[dy*4 +1];
-            beta[dy*4 +1] = beta[dy*4 +0];
-            beta[dy*4 +0] = 0.f;
-        }
-        if (sy >= src.h - 1)
-        {
-            sy = src.h - 3;
-            beta[dy*4 +3] = 1.f - beta[dy*4 +0];
-            beta[dy*4 +2] = beta[dy*4 +0];
-            beta[dy*4 +1] = 0.f;
-            beta[dy*4 +0] = 0.f;
-        }
-
-        yofs[dy] = sy;
-    }
+static void resize_bicubic_image(const Mat& src, Mat& dst, float* alpha, int* xofs, float* beta, int* yofs)
+{
+    int w = dst.w;
+    int h = dst.h;
 
     // loop body
     Mat rowsbuf0(w);
@@ -489,8 +387,6 @@ static void resize_bicubic_image(const Mat& src, Mat& dst)
 
         beta += 4;
     }
-
-    delete[] buf;
 }
 
 int Interp::forward(const Mat &bottom_blob, Mat &top_blob, const Option& opt) const
@@ -556,27 +452,53 @@ int Interp::forward(const Mat &bottom_blob, Mat &top_blob, const Option& opt) co
     }
     else if (resize_type == 2)// bilinear
     {
+        int* buf = new int[ow + oh + ow*2 + oh*2];
+
+        int* xofs = buf;//new int[ow];
+        int* yofs = buf + ow;//new int[oh];
+
+        float* alpha = (float*)(buf + ow + oh);//new float[ow * 2];
+        float* beta = (float*)(buf + ow + oh + ow*2);//new float[oh * 2];
+
+        linear_coeffs(w, ow, xofs, alpha);
+        linear_coeffs(h, oh, yofs, beta);
+
         #pragma omp parallel for num_threads(opt.num_threads)
         for (int q = 0; q < c; ++q)
         {
             const Mat src = bottom_blob.channel(q);
             Mat dst = top_blob.channel(q);
 
-            resize_bilinear_image(src, dst);
+            resize_bilinear_image(src, dst, alpha, xofs, beta, yofs);
         }
+
+        delete[] buf;
 
         return 0;
     }
     else if (resize_type == 3)// bicubic
     {
+        int* buf = new int[ow + oh + ow*4 + oh*4];
+
+        int* xofs = buf;//new int[ow];
+        int* yofs = buf + ow;//new int[oh];
+
+        float* alpha = (float*)(buf + ow + oh);//new float[ow * 4];
+        float* beta = (float*)(buf + ow + oh + ow*4);//new float[oh * 4];
+
+        cubic_coeffs(w, ow, xofs, alpha);
+        cubic_coeffs(h, oh, yofs, beta);
+
         #pragma omp parallel for num_threads(opt.num_threads)
         for (int q = 0; q < c; ++q)
         {
             const Mat src = bottom_blob.channel(q);
             Mat dst = top_blob.channel(q);
 
-            resize_bicubic_image(src, dst);
+            resize_bicubic_image(src, dst, alpha, xofs, beta, yofs);
         }
+
+        delete[] buf;
 
         return 0;
     }
@@ -586,210 +508,5 @@ int Interp::forward(const Mat &bottom_blob, Mat &top_blob, const Option& opt) co
         return -233;
     }
 }
-
-#if NCNN_VULKAN
-int Interp::create_pipeline()
-{
-    if (resize_type == 1 || resize_type == 2)
-    {
-        std::vector<vk_specialization_type> specializations(1);
-        specializations[0].i = resize_type;
-
-        // pack1
-        {
-            pipeline_interp = new Pipeline(vkdev);
-            pipeline_interp->set_optimal_local_size_xyz();
-            pipeline_interp->create("interp", specializations, 2, 12);
-        }
-
-        // pack4
-        {
-            pipeline_interp_pack4 = new Pipeline(vkdev);
-            pipeline_interp_pack4->set_optimal_local_size_xyz();
-            pipeline_interp_pack4->create("interp_pack4", specializations, 2, 12);
-        }
-    }
-
-    if (resize_type == 3)
-    {
-        std::vector<vk_specialization_type> specializations;
-
-        pipeline_interp_bicubic_coeffs_x = new Pipeline(vkdev);
-        pipeline_interp_bicubic_coeffs_x->set_optimal_local_size_xyz(64, 1, 1);
-        pipeline_interp_bicubic_coeffs_x->create("interp_bicubic_coeffs", specializations, 2, 3);
-
-        pipeline_interp_bicubic_coeffs_y = new Pipeline(vkdev);
-        pipeline_interp_bicubic_coeffs_y->set_optimal_local_size_xyz(64, 1, 1);
-        pipeline_interp_bicubic_coeffs_y->create("interp_bicubic_coeffs", specializations, 2, 3);
-
-        // pack1
-        {
-            pipeline_interp_bicubic = new Pipeline(vkdev);
-            pipeline_interp_bicubic->set_optimal_local_size_xyz();
-            pipeline_interp_bicubic->create("interp_bicubic", specializations, 6, 10);
-        }
-
-        // pack4
-        {
-            pipeline_interp_bicubic_pack4 = new Pipeline(vkdev);
-            pipeline_interp_bicubic_pack4->set_optimal_local_size_xyz();
-            pipeline_interp_bicubic_pack4->create("interp_bicubic_pack4", specializations, 6, 10);
-        }
-    }
-
-    return 0;
-}
-
-int Interp::destroy_pipeline()
-{
-    delete pipeline_interp;
-    pipeline_interp = 0;
-
-    delete pipeline_interp_pack4;
-    pipeline_interp_pack4 = 0;
-
-    delete pipeline_interp_bicubic_coeffs_x;
-    pipeline_interp_bicubic_coeffs_x = 0;
-
-    delete pipeline_interp_bicubic_coeffs_y;
-    pipeline_interp_bicubic_coeffs_y = 0;
-
-    delete pipeline_interp_bicubic;
-    pipeline_interp_bicubic = 0;
-
-    delete pipeline_interp_bicubic_pack4;
-    pipeline_interp_bicubic_pack4 = 0;
-
-    return 0;
-}
-
-int Interp::forward(const VkMat& bottom_blob, VkMat& top_blob, VkCompute& cmd, const Option& opt) const
-{
-    int w = bottom_blob.w;
-    int h = bottom_blob.h;
-    int channels = bottom_blob.c;
-    size_t elemsize = bottom_blob.elemsize;
-    int packing = bottom_blob.packing;
-
-    int outw = output_width;
-    int outh = output_height;
-    if (outw == 0 || outh == 0)
-    {
-        outw = w * width_scale;
-        outh = h * height_scale;
-    }
-
-    if (outh == h && outw == w)
-    {
-        top_blob = bottom_blob;
-        return 0;
-    }
-
-    top_blob.create(outw, outh, channels, elemsize, packing, opt.blob_vkallocator, opt.staging_vkallocator);
-    if (top_blob.empty())
-        return -100;
-
-//     fprintf(stderr, "Interp::forward %p %p\n", bottom_blob.buffer(), top_blob.buffer());
-
-    if (resize_type == 1 || resize_type == 2) // nearest or bilinear
-    {
-        std::vector<VkMat> bindings(2);
-        bindings[0] = bottom_blob;
-        bindings[1] = top_blob;
-
-        std::vector<vk_constant_type> constants(12);
-        constants[0].i = bottom_blob.dims;
-        constants[1].i = bottom_blob.w;
-        constants[2].i = bottom_blob.h;
-        constants[3].i = bottom_blob.c;
-        constants[4].i = bottom_blob.cstep;
-        constants[5].i = top_blob.dims;
-        constants[6].i = top_blob.w;
-        constants[7].i = top_blob.h;
-        constants[8].i = top_blob.c;
-        constants[9].i = top_blob.cstep;
-        constants[10].f = w / (float)outw;
-        constants[11].f = h / (float)outh;
-
-        const Pipeline* pipeline = packing == 4 ? pipeline_interp_pack4 : pipeline_interp;
-
-        // record
-        cmd.record_pipeline(pipeline, bindings, constants, top_blob);
-    }
-    else if (resize_type == 3) // bicubic
-    {
-        VkMat alpha(outw, (size_t)(elemsize / packing * 4), 4, opt.workspace_vkallocator, opt.staging_vkallocator);
-        if (alpha.empty())
-            return -100;
-
-        VkMat xofs(outw, (size_t)4u, 1, opt.workspace_vkallocator, opt.staging_vkallocator);
-        if (xofs.empty())
-            return -100;
-
-        {
-            std::vector<VkMat> bindings(2);
-            bindings[0] = alpha;
-            bindings[1] = xofs;
-
-            std::vector<vk_constant_type> constants(3);
-            constants[0].i = bottom_blob.w;
-            constants[1].i = outw;
-            constants[2].f = (float)bottom_blob.w / outw;
-
-            // record
-            cmd.record_pipeline(pipeline_interp_bicubic_coeffs_x, bindings, constants, alpha);
-        }
-
-        VkMat beta(outh, (size_t)(elemsize / packing * 4), 4, opt.workspace_vkallocator, opt.staging_vkallocator);
-        if (beta.empty())
-            return -100;
-
-        VkMat yofs(outh, (size_t)4u, 1, opt.workspace_vkallocator, opt.staging_vkallocator);
-        if (yofs.empty())
-            return -100;
-
-        {
-            std::vector<VkMat> bindings(2);
-            bindings[0] = beta;
-            bindings[1] = yofs;
-
-            std::vector<vk_constant_type> constants(3);
-            constants[0].i = bottom_blob.h;
-            constants[1].i = outh;
-            constants[2].f = (float)bottom_blob.h / outh;
-
-            // record
-            cmd.record_pipeline(pipeline_interp_bicubic_coeffs_y, bindings, constants, beta);
-        }
-
-        std::vector<VkMat> bindings(6);
-        bindings[0] = bottom_blob;
-        bindings[1] = top_blob;
-        bindings[2] = alpha;
-        bindings[3] = xofs;
-        bindings[4] = beta;
-        bindings[5] = yofs;
-
-        std::vector<vk_constant_type> constants(10);
-        constants[0].i = bottom_blob.dims;
-        constants[1].i = bottom_blob.w;
-        constants[2].i = bottom_blob.h;
-        constants[3].i = bottom_blob.c;
-        constants[4].i = bottom_blob.cstep;
-        constants[5].i = top_blob.dims;
-        constants[6].i = top_blob.w;
-        constants[7].i = top_blob.h;
-        constants[8].i = top_blob.c;
-        constants[9].i = top_blob.cstep;
-
-        const Pipeline* pipeline = packing == 4 ? pipeline_interp_bicubic_pack4 : pipeline_interp_bicubic;
-
-        // record
-        cmd.record_pipeline(pipeline, bindings, constants, top_blob);
-    }
-
-    return 0;
-}
-#endif // NCNN_VULKAN
 
 } // namespace ncnn
