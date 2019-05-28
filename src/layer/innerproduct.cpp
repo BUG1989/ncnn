@@ -189,10 +189,6 @@ int InnerProduct::forward(const Mat& bottom_blob, Mat& top_blob, const Option& o
     size_t elemsize = bottom_blob.elemsize;
     int size = w * h;
 
-#if DEBUG_FEATURE
-    extract_feature_in_f32(0, this->name.c_str(), bottom_blob);
-#endif       
-
     top_blob.create(num_output, elemsize, opt.blob_allocator);
     if (top_blob.empty())
         return -100;
@@ -275,33 +271,6 @@ int InnerProduct::forward(const Mat& bottom_blob, Mat& top_blob, const Option& o
             }
         }
 
-        top_blob[p] = sum;
-    }
-
-#if DEBUG_FEATURE
-    extract_feature_out_f32(0, this->name.c_str(), top_blob);
-#endif    
-
-    return 0;
-}
-
-#if NCNN_VULKAN
-int InnerProduct::upload_model(VkTransfer& cmd)
-{
-    int num_input = weight_data_size / num_output;
-
-    // pack1
-    if (num_input % 4 != 0 && num_output % 4 != 0)
-    {
-        cmd.record_upload(weight_data, weight_data_gpu);
-    }
-
-    // pack4
-    if (num_input % 4 == 0 && num_output % 4 == 0)
-    {
-        // src = inch-outch
-        // dst = 4a-4b-inch/4a-outch/4b
-        Mat weight_data_pack4;
         if (activation_type == 1)
         {
             sum = std::max(sum, 0.f);

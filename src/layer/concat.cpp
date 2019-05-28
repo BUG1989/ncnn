@@ -23,6 +23,20 @@ Concat::Concat()
 {
     one_blob_only = false;
     support_inplace = false;
+    use_int8_inference = false;
+}
+
+Concat::~Concat()
+{
+    bottom_blob_int8_scales.clear();
+}
+
+static inline signed char float2int8(float v)
+{
+    int int32 = round(v);
+    if (int32 > 127) return 127;
+    if (int32 < -128) return -128;
+    return (signed char)int32;
 }
 
 int Concat::load_param(const ParamDict& pd)
@@ -32,8 +46,147 @@ int Concat::load_param(const ParamDict& pd)
     return 0;
 }
 
+int Concat::forward_int8(const std::vector<Mat>& bottom_blobs, std::vector<Mat>& top_blobs, const Option& opt) const
+{
+    int dims = bottom_blobs[0].dims;
+    size_t elemsize = 1ul;
+
+    std::vector<Mat> bottom_blobs_tmp;
+    bottom_blobs_tmp.resize(bottom_blobs.size());
+
+    // change bottom blob scale to top quant scale
+    for (size_t i=0; i < bottom_blobs.size(); i++)
+    {
+        if (bottom_blob_int8_scales[i] != top_blob_int8_scale && bottom_blob_int8_scales[i] != 0)
+        {
+            bottom_blobs_tmp[i] = bottom_blobs[i].clone(opt.workspace_allocator);
+            float scale_fuse = top_blob_int8_scale / bottom_blob_int8_scales[i];
+            int size = bottom_blobs[i].w * bottom_blobs[i].h;
+
+            #pragma omp parallel for num_threads(opt.num_threads)
+            for (int q=0; q<bottom_blobs[i].c; q++)
+            {
+                signed char* src = bottom_blobs_tmp[i].channel(q);
+                signed char* dst = bottom_blobs_tmp[i].channel(q);
+
+                for (int i=0; i<size; i++)
+                {
+                    float temp = (float)(*src);
+                    temp = temp * scale_fuse;
+                    *dst = float2int8(temp);
+                    src++;
+                    dst++;
+                }
+            }   
+#if DEBUG_FEATURE
+            char comment_in[128] = {'\0'};
+            char comment_out[128] = {'\0'};
+
+            sprintf(comment_in, "D_%d_In_S8", i);
+            sprintf(comment_out, "D_%d_Out_S8", i);
+
+            extract_feature_blob_s8(comment_in, this->name.c_str(), bottom_blobs[i]);
+            extract_feature_blob_s8(comment_out, this->name.c_str(), bottom_blobs_tmp[i]);
+#endif                     
+        }
+        else if(bottom_blob_int8_scales[i] == 0)
+        {
+            bottom_blobs_tmp[i].create(bottom_blobs[i].w, bottom_blobs[i].h, bottom_blobs[i].c, 1UL, opt.workspace_allocator);
+            float scale = top_blob_int8_scale;
+            int size = bottom_blobs[i].w * bottom_blobs[i].h;
+
+            #pragma omp parallel for num_threads(opt.num_threads)
+            for (int q=0; q<bottom_blobs[i].c; q++)
+            {
+                const float* src = bottom_blobs[i].channel(q);
+                signed char* dst = bottom_blobs_tmp[i].channel(q);
+
+                for (int i=0; i<size; i++)
+                {
+                    float temp = *src;
+                    temp = temp * scale;
+                    *dst = float2int8(temp);
+                    src++;
+                    dst++;
+                }
+            }   
+#if DEBUG_FEATURE
+            fprintf(stderr, "Eltwise int8, the bottom blob is needed quantization\n");
+            char comment_in[128] = {'\0'};
+            char comment_out[128] = {'\0'};
+
+            sprintf(comment_in, "D_%d_In_FP32", i);
+            sprintf(comment_out, "D_%d_Out_S8", i);
+
+            extract_feature_blob_f32(comment_in, this->name.c_str(), bottom_blobs[i]);
+            extract_feature_blob_s8(comment_out, this->name.c_str(), bottom_blobs_tmp[i]);
+#endif      
+        }
+        else
+        {
+            bottom_blobs_tmp[i] = bottom_blobs[i];
+
+#if DEBUG_FEATURE
+            char comment_in[128] = {'\0'};
+            char comment_out[128] = {'\0'};
+
+            sprintf(comment_in, "D_%d_In_S8", i);
+            sprintf(comment_out, "D_%d_Out_S8", i);
+
+            extract_feature_blob_s8(comment_in, this->name.c_str(), bottom_blobs[i]);
+            extract_feature_blob_s8(comment_out, this->name.c_str(), bottom_blobs_tmp[i]);
+#endif                
+        }           
+    }
+
+    if (dims == 3 && axis == 0)
+    {
+        // concat dim
+        int w = bottom_blobs_tmp[0].w;
+        int h = bottom_blobs_tmp[0].h;
+
+        // total channels
+        int top_channels = 0;
+        for (size_t b=0; b<bottom_blobs_tmp.size(); b++)
+        {
+            const Mat& bottom_blob = bottom_blobs_tmp[b];
+            top_channels += bottom_blob.c;
+        }
+
+        Mat& top_blob = top_blobs[0];
+        top_blob.create(w, h, top_channels, 1UL, opt.blob_allocator);
+        if (top_blob.empty())
+            return -100;
+
+        int q = 0;
+        for (size_t b=0; b<bottom_blobs_tmp.size(); b++)
+        {
+            const Mat& bottom_blob = bottom_blobs_tmp[b];
+
+            int channels = bottom_blob.c;
+            int size = bottom_blob.cstep * channels;
+
+            const signed char* ptr = bottom_blob;
+            signed char* outptr = top_blob.channel(q);
+            memcpy(outptr, ptr, size * elemsize);
+
+            q += channels;
+        }
+
+        return 0;
+    }
+    else
+    {
+        fprintf(stderr, "Concat int8 is just support dim 3 axis 0\n");
+        return -1;
+    }
+}
+
 int Concat::forward(const std::vector<Mat>& bottom_blobs, std::vector<Mat>& top_blobs, const Option& opt) const
 {
+    if (use_int8_inference == true)
+        return Concat::forward_int8(bottom_blobs, top_blobs, opt);
+            
     int dims = bottom_blobs[0].dims;
     size_t elemsize = bottom_blobs[0].elemsize;
 

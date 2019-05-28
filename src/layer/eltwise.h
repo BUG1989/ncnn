@@ -23,10 +23,13 @@ class Eltwise : public Layer
 {
 public:
     Eltwise();
+    ~Eltwise();
 
     virtual int load_param(const ParamDict& pd);
 
     virtual int forward(const std::vector<Mat>& bottom_blobs, std::vector<Mat>& top_blobs, const Option& opt) const;
+    virtual int forward_quant(const std::vector<Mat>& bottom_blobs, std::vector<Mat>& top_blobs, const Option& opt) const;
+    virtual int forward_dequant(const std::vector<Mat>& bottom_blobs, std::vector<Mat>& top_blobs, const Option& opt) const;    
 
     enum { Operation_PROD = 0, Operation_SUM = 1, Operation_MAX = 2 };
 
@@ -34,6 +37,11 @@ public:
     // param
     int op_type;
     Mat coeffs;
+
+    bool use_int8_inference;
+    bool use_dequant;
+    float top_blob_int8_scale;
+    std::vector<float> bottom_blob_int8_scales;    
 };
 
 } // namespace ncnn

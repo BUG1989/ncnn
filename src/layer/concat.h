@@ -23,13 +23,19 @@ class Concat : public Layer
 {
 public:
     Concat();
+    ~Concat();
 
     virtual int load_param(const ParamDict& pd);
 
     virtual int forward(const std::vector<Mat>& bottom_blobs, std::vector<Mat>& top_blobs, const Option& opt) const;
+    virtual int forward_int8(const std::vector<Mat>& bottom_blobs, std::vector<Mat>& top_blobs, const Option& opt) const;
 
 public:
     int axis;
+
+    bool use_int8_inference;
+    float top_blob_int8_scale;
+    std::vector<float> bottom_blob_int8_scales;    
 };
 
 } // namespace ncnn
