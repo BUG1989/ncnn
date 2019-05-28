@@ -25,6 +25,7 @@ namespace ncnn {
 #include "convolution_4x4.h"
 #include "convolution_5x5.h"
 #include "convolution_7x7.h"
+#include "convolution_sgemm.h"
 #include "convolution_sgemm_int8.h"
 #include "convolution_1x1_int8.h"
 #include "convolution_3x3_int8.h"
@@ -88,9 +89,6 @@ int Convolution_arm::create_pipeline(const Option& opt)
         // winograd is slow on small channel count
         if (num_input >= 16 && num_output >= 16)
             use_winograd3x3 = true;
-
-        if (use_int8_inference)
-            use_winograd3x3 = true;
     }
 
     // TODO assume more proper condition
@@ -150,6 +148,13 @@ int Convolution_arm::create_pipeline(const Option& opt)
         int num_input = weight_data_size / 9 / num_output;
         conv3x3s2_transform_kernel_neon(weight_data, weight_3x3s2_data, num_input, num_output);
     }
+    
+    {
+        int kernel_size = kernel_w * kernel_h;
+        int num_input = weight_data_size / kernel_size / num_output;
+
+        conv_im2col_sgemm_transform_kernel_neon(weight_data, weight_sgemm_data, num_input, num_output, kernel_size);
+    }    
 
     return 0;
 }
@@ -517,7 +522,7 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
                 // return 0;
                 conv1x1s1_sgemm_int8_neon(bottom_blob_bordered, top_blob_tm, weight_1x1s1_sgemm_int8_data, opt);
             }
-            else if (use_winograd3x3)
+            else if (use_winograd3x3 && outw >= 8 && outh >=8)
             {
                 // conv3x3s1_winograd23_int8_neon(bottom_blob_bordered, top_blob_tm, weight_3x3_winograd23_int8_data, opt);
                 conv3x3s1_winograd43_int8_neon(bottom_blob_bordered, top_blob_tm, weight_3x3_winograd23_int8_data, opt);
@@ -568,7 +573,7 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
             {
                 conv1x1s1_sgemm_int8_neon(bottom_blob_bordered, top_blob, weight_1x1s1_sgemm_int8_data, opt);
             }
-            else if (use_winograd3x3)
+            else if (use_winograd3x3 && outw >= 8 && outh >=8)
             {
                 // conv3x3s1_winograd23_int8_neon(bottom_blob_bordered, top_blob, weight_3x3_winograd23_int8_data, opt);
                 // conv3x3s1_winograd43_int8_neon(bottom_blob_bordered, top_blob, weight_3x3_winograd23_int8_data, opt);
@@ -632,12 +637,24 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     {
         conv1x1s1_sgemm_neon(bottom_blob_bordered, top_blob, weight_1x1_sgemm_data, bias_data, opt);
     }
+    else if (kernel_w == 1 && kernel_h == 1 && dilation_w == 1 && dilation_h == 1 && stride_w == 2 && stride_h == 2)
+    {
+        conv_im2col_sgemm_neon(bottom_blob_bordered, top_blob, weight_sgemm_data, bias_data, kernel_w, kernel_h, stride_w, stride_h, opt);
+    }
     else if (kernel_w == 3 && kernel_h == 3 && dilation_w == 1 && dilation_h == 1 && stride_w == 2 && stride_h == 2)
     {
-        conv3x3s2_packed_neon(bottom_blob_bordered, top_blob, weight_3x3s2_data, bias_data, opt);
-    }
+        if (outw >=8 && outh >=8)
+            conv3x3s2_packed_neon(bottom_blob_bordered, top_blob, weight_3x3s2_data, bias_data, opt);
+        else
+            conv_im2col_sgemm_neon(bottom_blob_bordered, top_blob, weight_sgemm_data, bias_data, kernel_w, kernel_h, stride_w, stride_h, opt);
+    }     
     else
         conv(bottom_blob_bordered, top_blob, weight_data, bias_data, opt);
+
+#if DEBUG_FEATURE 
+        extract_feature_in_f32(0, this->name.c_str(), bottom_blob_bordered);     
+        extract_feature_out_f32(0, this->name.c_str(), top_blob);
+#endif
 
     if (activation)
     {
