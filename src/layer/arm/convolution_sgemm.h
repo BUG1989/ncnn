@@ -30,7 +30,7 @@ static void conv_im2col_sgemm_transform_kernel_neon(const Mat& _kernel, Mat& ker
 
 #if __ARM_NEON && __aarch64__
     nn_outch = outch >> 3;
-    remain_outch_start = nn_outch << 3;      
+    remain_outch_start = nn_outch << 3;
     
     for (int pp=0; pp<nn_outch; pp++)
     {
@@ -86,7 +86,7 @@ static void conv_im2col_sgemm_transform_kernel_neon(const Mat& _kernel, Mat& ker
         float* ktmp = kernel_tm.channel(p/8 + (p%8)/4);
 #else
         float* ktmp = kernel_tm.channel(p/4);
-#endif // __ARM_NEON && __aarch64__            
+#endif // __ARM_NEON && __aarch64__
 
         for (int q=0; q<inch*kernel_size; q++)
         {
@@ -204,15 +204,15 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
 #else
                 asm volatile(
                     "pld        [%0, #256]          \n"
-                    "vld1.f32   {d0-d3}, [%0 :128]  \n"
-                    "vst1.f32   {d0-d3}, [%1 :128]  \n"
+                    "vld1.f32   {d0-d3}, [%0]       \n"
+                    "vst1.f32   {d0-d3}, [%1]       \n"
                     : "=r"(img0),   // %0
                       "=r"(tmpptr)  // %1
                     : "0"(img0),
                       "1"(tmpptr)
                     : "memory", "q0", "q1"
                 );
-#endif // __aarch64__                
+#endif // __aarch64__
 #else                
                 tmpptr[0] = img0[0];
                 tmpptr[1] = img0[1];
@@ -248,14 +248,14 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
     
     // sgemm(int M, int N, int L, float* A, float* B, float* C)
     {
-        //int M = outch;  // outch
-        int N = outw * outh; // outsize or out stride
+        //int M = outch;                    // outch
+        int N = outw * outh;                // outsize or out stride
         int L = kernel_w * kernel_h * inch; // ksize * inch
 
         int nn_outch = 0;
         int remain_outch_start = 0;
 
-#if 1 //__aarch64__
+#if __aarch64__
         nn_outch = outch >> 3;
         remain_outch_start = nn_outch << 3;
 
@@ -279,7 +279,7 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
             int j=0;
             for (; j+7<N; j=j+8)
             {
-                float* vb = bottom_tm.channel(j/8);
+                const float* vb = bottom_tm.channel(j/8);
                 const float* va = kernel_tm.channel(i/8);
 #if __ARM_NEON
                 asm volatile(
@@ -315,22 +315,22 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
                     "ld1    {v8.4s, v9.4s, v10.4s, v11.4s}, [%8], #64   \n" // data
                     "ld1    {v12.4s, v13.4s, v14.4s, v15.4s}, [%8], #64 \n"
                     // k0
-                    "fmla    v16.4s, v8.4s, v0.s[0]     \n"// sum0 += (a00-a70) * k00
-                    "fmla    v17.4s, v9.4s, v0.s[0]     \n"//
-                    "fmla    v18.4s, v8.4s, v0.s[1]     \n"// sum1 += (a00-a70) * k10
-                    "fmla    v19.4s, v9.4s, v0.s[1]     \n"//
-                    "fmla    v20.4s, v8.4s, v0.s[2]     \n"// sum2 += (a00-a70) * k20
-                    "fmla    v21.4s, v9.4s, v0.s[2]     \n"//
-                    "fmla    v22.4s, v8.4s, v0.s[3]     \n"// sum3 += (a00-a70) * k30
-                    "fmla    v23.4s, v9.4s, v0.s[3]     \n"//
-                    "fmla    v24.4s, v8.4s, v1.s[0]     \n"// sum4 += (a00-a70) * k40
-                    "fmla    v25.4s, v9.4s, v1.s[0]     \n"//
-                    "fmla    v26.4s, v8.4s, v1.s[1]     \n"// sum5 += (a00-a70) * k50
-                    "fmla    v27.4s, v9.4s, v1.s[1]     \n"//
-                    "fmla    v28.4s, v8.4s, v1.s[2]     \n"// sum6 += (a00-a70) * k60
-                    "fmla    v29.4s, v9.4s, v1.s[2]     \n"//
-                    "fmla    v30.4s, v8.4s, v1.s[3]     \n"// sum7 += (a00-a70) * k70
-                    "fmla    v31.4s, v9.4s, v1.s[3]     \n"//
+                    "fmla    v16.4s, v8.4s, v0.s[0]      \n"// sum0 += (a00-a70) * k00
+                    "fmla    v17.4s, v9.4s, v0.s[0]      \n"//
+                    "fmla    v18.4s, v8.4s, v0.s[1]      \n"// sum1 += (a00-a70) * k10
+                    "fmla    v19.4s, v9.4s, v0.s[1]      \n"//
+                    "fmla    v20.4s, v8.4s, v0.s[2]      \n"// sum2 += (a00-a70) * k20
+                    "fmla    v21.4s, v9.4s, v0.s[2]      \n"//
+                    "fmla    v22.4s, v8.4s, v0.s[3]      \n"// sum3 += (a00-a70) * k30
+                    "fmla    v23.4s, v9.4s, v0.s[3]      \n"//
+                    "fmla    v24.4s, v8.4s, v1.s[0]      \n"// sum4 += (a00-a70) * k40
+                    "fmla    v25.4s, v9.4s, v1.s[0]      \n"//
+                    "fmla    v26.4s, v8.4s, v1.s[1]      \n"// sum5 += (a00-a70) * k50
+                    "fmla    v27.4s, v9.4s, v1.s[1]      \n"//
+                    "fmla    v28.4s, v8.4s, v1.s[2]      \n"// sum6 += (a00-a70) * k60
+                    "fmla    v29.4s, v9.4s, v1.s[2]      \n"//
+                    "fmla    v30.4s, v8.4s, v1.s[3]      \n"// sum7 += (a00-a70) * k70
+                    "fmla    v31.4s, v9.4s, v1.s[3]      \n"//
                     // k1
                     "fmla    v16.4s, v10.4s, v2.s[0]     \n"// sum0 += (a01-a71) * k01
                     "fmla    v17.4s, v11.4s, v2.s[0]     \n"//
@@ -349,39 +349,39 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
                     "fmla    v30.4s, v10.4s, v3.s[3]     \n"// sum7 += (a01-a71) * k71
                     "fmla    v31.4s, v11.4s, v3.s[3]     \n"//
                     // k2
-                    "fmla    v16.4s, v12.4s, v4.s[0]    \n"// sum0 += (a02-a72) * k02
-                    "fmla    v17.4s, v13.4s, v4.s[0]    \n"//
-                    "fmla    v18.4s, v12.4s, v4.s[1]    \n"// sum1 += (a02-a72) * k12
-                    "fmla    v19.4s, v13.4s, v4.s[1]    \n"//
-                    "fmla    v20.4s, v12.4s, v4.s[2]    \n"// sum2 += (a02-a72) * k22
-                    "fmla    v21.4s, v13.4s, v4.s[2]    \n"//
-                    "fmla    v22.4s, v12.4s, v4.s[3]    \n"// sum3 += (a02-a72) * k32
-                    "fmla    v23.4s, v13.4s, v4.s[3]    \n"//
-                    "fmla    v24.4s, v12.4s, v5.s[0]    \n"// sum4 += (a02-a72) * k42
-                    "fmla    v25.4s, v13.4s, v5.s[0]    \n"//
-                    "fmla    v26.4s, v12.4s, v5.s[1]    \n"// sum5 += (a02-a72) * k52
-                    "fmla    v27.4s, v13.4s, v5.s[1]    \n"//
-                    "fmla    v28.4s, v12.4s, v5.s[2]    \n"// sum6 += (a02-a72) * k62
-                    "fmla    v29.4s, v13.4s, v5.s[2]    \n"//
-                    "fmla    v30.4s, v12.4s, v5.s[3]    \n"// sum7 += (a02-a72) * k72
-                    "fmla    v31.4s, v13.4s, v5.s[3]    \n"//
+                    "fmla    v16.4s, v12.4s, v4.s[0]     \n"// sum0 += (a02-a72) * k02
+                    "fmla    v17.4s, v13.4s, v4.s[0]     \n"//
+                    "fmla    v18.4s, v12.4s, v4.s[1]     \n"// sum1 += (a02-a72) * k12
+                    "fmla    v19.4s, v13.4s, v4.s[1]     \n"//
+                    "fmla    v20.4s, v12.4s, v4.s[2]     \n"// sum2 += (a02-a72) * k22
+                    "fmla    v21.4s, v13.4s, v4.s[2]     \n"//
+                    "fmla    v22.4s, v12.4s, v4.s[3]     \n"// sum3 += (a02-a72) * k32
+                    "fmla    v23.4s, v13.4s, v4.s[3]     \n"//
+                    "fmla    v24.4s, v12.4s, v5.s[0]     \n"// sum4 += (a02-a72) * k42
+                    "fmla    v25.4s, v13.4s, v5.s[0]     \n"//
+                    "fmla    v26.4s, v12.4s, v5.s[1]     \n"// sum5 += (a02-a72) * k52
+                    "fmla    v27.4s, v13.4s, v5.s[1]     \n"//
+                    "fmla    v28.4s, v12.4s, v5.s[2]     \n"// sum6 += (a02-a72) * k62
+                    "fmla    v29.4s, v13.4s, v5.s[2]     \n"//
+                    "fmla    v30.4s, v12.4s, v5.s[3]     \n"// sum7 += (a02-a72) * k72
+                    "fmla    v31.4s, v13.4s, v5.s[3]     \n"//
                     // k3
-                    "fmla    v16.4s, v14.4s, v6.s[0]    \n"// sum0 += (a03-a73) * k03
-                    "fmla    v17.4s, v15.4s, v6.s[0]    \n"//
-                    "fmla    v18.4s, v14.4s, v6.s[1]    \n"// sum1 += (a03-a73) * k13
-                    "fmla    v19.4s, v15.4s, v6.s[1]    \n"//
-                    "fmla    v20.4s, v14.4s, v6.s[2]    \n"// sum2 += (a03-a73) * k23
-                    "fmla    v21.4s, v15.4s, v6.s[2]    \n"//
-                    "fmla    v22.4s, v14.4s, v6.s[3]    \n"// sum3 += (a03-a73) * k33
-                    "fmla    v23.4s, v15.4s, v6.s[3]    \n"//
-                    "fmla    v24.4s, v14.4s, v7.s[0]    \n"// sum4 += (a03-a73) * k43
-                    "fmla    v25.4s, v15.4s, v7.s[0]    \n"//
-                    "fmla    v26.4s, v14.4s, v7.s[1]    \n"// sum5 += (a03-a73) * k53
-                    "fmla    v27.4s, v15.4s, v7.s[1]    \n"//
-                    "fmla    v28.4s, v14.4s, v7.s[2]    \n"// sum6 += (a03-a73) * k63
-                    "fmla    v29.4s, v15.4s, v7.s[2]    \n"//
-                    "fmla    v30.4s, v14.4s, v7.s[3]    \n"// sum7 += (a03-a73) * k73
-                    "fmla    v31.4s, v15.4s, v7.s[3]    \n"//
+                    "fmla    v16.4s, v14.4s, v6.s[0]     \n"// sum0 += (a03-a73) * k03
+                    "fmla    v17.4s, v15.4s, v6.s[0]     \n"//
+                    "fmla    v18.4s, v14.4s, v6.s[1]     \n"// sum1 += (a03-a73) * k13
+                    "fmla    v19.4s, v15.4s, v6.s[1]     \n"//
+                    "fmla    v20.4s, v14.4s, v6.s[2]     \n"// sum2 += (a03-a73) * k23
+                    "fmla    v21.4s, v15.4s, v6.s[2]     \n"//
+                    "fmla    v22.4s, v14.4s, v6.s[3]     \n"// sum3 += (a03-a73) * k33
+                    "fmla    v23.4s, v15.4s, v6.s[3]     \n"//
+                    "fmla    v24.4s, v14.4s, v7.s[0]     \n"// sum4 += (a03-a73) * k43
+                    "fmla    v25.4s, v15.4s, v7.s[0]     \n"//
+                    "fmla    v26.4s, v14.4s, v7.s[1]     \n"// sum5 += (a03-a73) * k53
+                    "fmla    v27.4s, v15.4s, v7.s[1]     \n"//
+                    "fmla    v28.4s, v14.4s, v7.s[2]     \n"// sum6 += (a03-a73) * k63
+                    "fmla    v29.4s, v15.4s, v7.s[2]     \n"//
+                    "fmla    v30.4s, v14.4s, v7.s[3]     \n"// sum7 += (a03-a73) * k73
+                    "fmla    v31.4s, v15.4s, v7.s[3]     \n"//
 
                     "subs   w4, w4, #1                   \n"
                     "bne    0b                           \n"
@@ -402,22 +402,22 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
                     "ld1    {v8.4s, v9.4s}, [%8], #32    \n"
 
                     // k0
-                    "fmla    v16.4s, v8.4s, v0.s[0]     \n"// sum0 += (a00-a70) * k00
-                    "fmla    v17.4s, v9.4s, v0.s[0]     \n"//
-                    "fmla    v18.4s, v8.4s, v0.s[1]     \n"// sum1 += (a00-a70) * k10
-                    "fmla    v19.4s, v9.4s, v0.s[1]     \n"//
-                    "fmla    v20.4s, v8.4s, v0.s[2]     \n"// sum2 += (a00-a70) * k20
-                    "fmla    v21.4s, v9.4s, v0.s[2]     \n"//
-                    "fmla    v22.4s, v8.4s, v0.s[3]     \n"// sum3 += (a00-a70) * k30
-                    "fmla    v23.4s, v9.4s, v0.s[3]     \n"//
-                    "fmla    v24.4s, v8.4s, v1.s[0]     \n"// sum4 += (a00-a70) * k40
-                    "fmla    v25.4s, v9.4s, v1.s[0]     \n"//
-                    "fmla    v26.4s, v8.4s, v1.s[1]     \n"// sum5 += (a00-a70) * k50
-                    "fmla    v27.4s, v9.4s, v1.s[1]     \n"//
-                    "fmla    v28.4s, v8.4s, v1.s[2]     \n"// sum6 += (a00-a70) * k60
-                    "fmla    v29.4s, v9.4s, v1.s[2]     \n"//
-                    "fmla    v30.4s, v8.4s, v1.s[3]     \n"// sum7 += (a00-a70) * k70
-                    "fmla    v31.4s, v9.4s, v1.s[3]     \n"//
+                    "fmla    v16.4s, v8.4s, v0.s[0]      \n"// sum0 += (a00-a70) * k00
+                    "fmla    v17.4s, v9.4s, v0.s[0]      \n"//
+                    "fmla    v18.4s, v8.4s, v0.s[1]      \n"// sum1 += (a00-a70) * k10
+                    "fmla    v19.4s, v9.4s, v0.s[1]      \n"//
+                    "fmla    v20.4s, v8.4s, v0.s[2]      \n"// sum2 += (a00-a70) * k20
+                    "fmla    v21.4s, v9.4s, v0.s[2]      \n"//
+                    "fmla    v22.4s, v8.4s, v0.s[3]      \n"// sum3 += (a00-a70) * k30
+                    "fmla    v23.4s, v9.4s, v0.s[3]      \n"//
+                    "fmla    v24.4s, v8.4s, v1.s[0]      \n"// sum4 += (a00-a70) * k40
+                    "fmla    v25.4s, v9.4s, v1.s[0]      \n"//
+                    "fmla    v26.4s, v8.4s, v1.s[1]      \n"// sum5 += (a00-a70) * k50
+                    "fmla    v27.4s, v9.4s, v1.s[1]      \n"//
+                    "fmla    v28.4s, v8.4s, v1.s[2]      \n"// sum6 += (a00-a70) * k60
+                    "fmla    v29.4s, v9.4s, v1.s[2]      \n"//
+                    "fmla    v30.4s, v8.4s, v1.s[3]      \n"// sum7 += (a00-a70) * k70
+                    "fmla    v31.4s, v9.4s, v1.s[3]      \n"//
 
                     "subs   w4, w4, #1                   \n"
 
@@ -600,10 +600,10 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
 
             for (; j<N; j++)
             {
-                float* vb = bottom_tm.channel(j/8 + j%8);
+                const float* vb = bottom_tm.channel(j/8 + j%8);
                 const float* va = kernel_tm.channel(i/8);
 
-#if 1 //__ARM_NEON
+#if __ARM_NEON
                 asm volatile(
                     "ld1    {v14.4s, v15.4s}, [%21]      \n" // sum0_7 inital with bias
                     "eor    v16.16b, v16.16b, v16.16b    \n" // sum0
@@ -629,14 +629,14 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
                     "ld1    {v8.4s}, [%8], #16           \n" // d
 
                     // k0
-                    "fmla    v16.4s, v0.4s, v8.s[0]     \n"// sum0 += (k00-k70) * a00
-                    "fmla    v17.4s, v1.4s, v8.s[0]     \n"//
-                    "fmla    v18.4s, v2.4s, v8.s[1]     \n"// sum1 += (k01-k71) * a10
-                    "fmla    v19.4s, v3.4s, v8.s[1]     \n"//
-                    "fmla    v20.4s, v4.4s, v8.s[2]     \n"// sum2 += (k02-k72) * a20
-                    "fmla    v21.4s, v5.4s, v8.s[2]     \n"//
-                    "fmla    v22.4s, v6.4s, v8.s[3]     \n"// sum3 += (k03-k73) * a30
-                    "fmla    v23.4s, v7.4s, v8.s[3]     \n"//
+                    "fmla    v16.4s, v0.4s, v8.s[0]      \n"// sum0 += (k00-k70) * a00
+                    "fmla    v17.4s, v1.4s, v8.s[0]      \n"//
+                    "fmla    v18.4s, v2.4s, v8.s[1]      \n"// sum1 += (k01-k71) * a10
+                    "fmla    v19.4s, v3.4s, v8.s[1]      \n"//
+                    "fmla    v20.4s, v4.4s, v8.s[2]      \n"// sum2 += (k02-k72) * a20
+                    "fmla    v21.4s, v5.4s, v8.s[2]      \n"//
+                    "fmla    v22.4s, v6.4s, v8.s[3]      \n"// sum3 += (k03-k73) * a30
+                    "fmla    v23.4s, v7.4s, v8.s[3]      \n"//
 
                     "subs   w4, w4, #1                   \n"
                     "bne    0b                           \n"
@@ -739,7 +739,7 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
                 output4[0] = sum4;
                 output5[0] = sum5;
                 output6[0] = sum6;
-                output7[0] = sum7;               
+                output7[0] = sum7;
 #endif // __ARM_NEON
                 output0++;
                 output1++;
@@ -771,25 +771,25 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
             int j=0;
             for (; j+7<N; j=j+8)
             {
-                float* vb = bottom_tm.channel(j/8);
-#if 1 //__ARM_NEON && __aarch64__
+                const float* vb = bottom_tm.channel(j/8);
+#if __ARM_NEON && __aarch64__
                 const float* va = kernel_tm.channel(i/8 + (i%8)/4);
 #else                
                 const float* va = kernel_tm.channel(i/4);
 #endif // __ARM_NEON && __aarch64__
 
-#if 1 //__ARM_NEON
-#if 1 //__aarch64__
+#if __ARM_NEON
+#if __aarch64__
                 asm volatile(
-                    "ld1    {v0.4s}, [%13]          \n"
-                    "dup    v16.4s, v0.s[0]         \n"// sum0
-                    "dup    v17.4s, v0.s[0]         \n"
-                    "dup    v18.4s, v0.s[1]         \n"// sum1
-                    "dup    v19.4s, v0.s[1]         \n"
-                    "dup    v20.4s, v0.s[2]         \n"// sum2
-                    "dup    v21.4s, v0.s[2]         \n"
-                    "dup    v22.4s, v0.s[3]         \n"// sum3
-                    "dup    v23.4s, v0.s[3]         \n"
+                    "ld1    {v0.4s}, [%13]               \n"
+                    "dup    v16.4s, v0.s[0]              \n"// sum0
+                    "dup    v17.4s, v0.s[0]              \n"
+                    "dup    v18.4s, v0.s[1]              \n"// sum1
+                    "dup    v19.4s, v0.s[1]              \n"
+                    "dup    v20.4s, v0.s[2]              \n"// sum2
+                    "dup    v21.4s, v0.s[2]              \n"
+                    "dup    v22.4s, v0.s[3]              \n"// sum3
+                    "dup    v23.4s, v0.s[3]              \n"
 
                     "lsr         w4, %w12, #2            \n"// r4 = nn = L >> 2
                     "cmp         w4, #0                  \n"
@@ -804,7 +804,8 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
                     "ld1    {v8.4s, v9.4s, v10.4s, v11.4s}, [%4], #64   \n" // data
                     "ld1    {v12.4s, v13.4s, v14.4s, v15.4s}, [%4], #64 \n"
 
-                                        // k0
+                    "subs   w4, w4, #1                   \n"
+                    // k0
                     "fmla    v16.4s, v8.4s, v0.s[0]      \n"// sum0 += (a00-a70) * k00
                     "fmla    v17.4s, v9.4s, v0.s[0]      \n"//
                     "fmla    v18.4s, v8.4s, v0.s[1]      \n"// sum1 += (a00-a70) * k10
@@ -841,7 +842,6 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
                     "fmla    v22.4s, v14.4s, v3.s[3]     \n"// sum3 += (a03-a73) * k33
                     "fmla    v23.4s, v15.4s, v3.s[3]     \n"//
 
-                    "subs   w4, w4, #1                   \n"
                     "bne    0b                           \n"
 
                     "1:                                  \n"
@@ -896,150 +896,98 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
                 );
 #else
                 asm volatile(
-                    // K loop
-                    "vmov.s32    q8, #0             \n"
-                    "vmov.s32    q9, #0             \n"
-                    "vmov.s32    q10, #0            \n"
-                    "vmov.s32    q11, #0            \n"
-                    "vmov.s32    q12, #0            \n"
-                    "vmov.s32    q13, #0            \n"
-                    "vmov.s32    q14, #0            \n"
-                    "vmov.s32    q15, #0            \n"
+                    "vld1.f32   {d0-d1}, [%13]      \n"
+                    "vdup.f32   q8, d0[0]           \n"
+                    "vdup.f32   q9, d0[0]           \n"
+                    "vdup.f32   q10, d0[1]          \n"
+                    "vdup.f32   q11, d0[1]          \n"
+                    "vdup.f32   q12, d1[0]          \n"
+                    "vdup.f32   q13, d1[0]          \n"
+                    "vdup.f32   q14, d1[1]          \n"
+                    "vdup.f32   q15, d1[1]          \n"
 
-                    "lsr         r4, %12, #3        \n"// r4 = nn = L >> 3
+                    "lsr         r4, %12, #2        \n"// r4 = nn = L >> 2
                     "cmp         r4, #0             \n"
                     "beq         1f                 \n"
                     
                     "0:                             \n"// for(; nn != 0; nn--)
-                    "pld         [%4, #128]         \n"
-                    "vld1.s8     {d8-d11}, [%4]!    \n"// tmpr a00-a07,a10-a17,a20-a27,a30-a37    a(inch)(data)
-                    "vmovl.s8    q7, d11            \n"// a30-a37
-                    "vmovl.s8    q6, d10            \n"// a20-a27                    
-                    "vmovl.s8    q5, d9             \n"// a10-a17
-                    "vmovl.s8    q4, d8             \n"// a00-a07
+                    "pld        [%5, #512]          \n"
+                    "vldm       %5!, {d0-d7}        \n"// kernel
+                    "pld        [%4, #512]          \n"
+                    "vldm       %4!, {d8-d15}       \n"// data
 
-                    "pld         [%5, #128]         \n"
-                    "vld1.s8     {d0-d3}, [%5]!     \n"// kptr k00-k30,k01-k31, k02-k32,k03-k33, k04-k34,k05-k35, k06-k36,k07-k37    k(outch)(inch)
-                    "vmovl.s8    q3, d3             \n"// k06-k36,k07-k37
-                    "vmovl.s8    q2, d2             \n"// k04-k34,k05-k35
-                    "vmovl.s8    q1, d1             \n"// k02-k32,k03-k33
-                    "vmovl.s8    q0, d0             \n"// k00-k30,k01-k31
+                    "vmla.f32   q8, q4, d0[0]       \n"// sum0 = (a00-a07) * k00
+                    "vmla.f32   q9, q5, d0[0]       \n"
+                    "vmla.f32   q10, q4, d0[1]      \n"// sum1 = (a00-a07) * k10
+                    "vmla.f32   q11, q5, d0[1]      \n"
+                    "vmla.f32   q12, q4, d1[0]      \n"// sum2 = (a00-a07) * k20
+                    "vmla.f32   q13, q5, d1[0]      \n"
+                    "vmla.f32   q14, q4, d1[1]      \n"// sum3 = (a00-a07) * k30
+                    "vmla.f32   q15, q5, d1[1]      \n"
 
-                    "vmlal.s16   q8, d8, d0[0]      \n"// sum0 = (a00-a07) * k00
-                    "vmlal.s16   q9, d9, d0[0]      \n"
-                    "vmlal.s16   q10, d8, d0[1]     \n"// sum1 = (a00-a07) * k10
-                    "vmlal.s16   q11, d9, d0[1]     \n"
-                    "vmlal.s16   q12, d8, d0[2]     \n"// sum2 = (a00-a07) * k20
-                    "vmlal.s16   q13, d9, d0[2]     \n"
-                    "vmlal.s16   q14, d8, d0[3]     \n"// sum3 = (a00-a07) * k30
-                    "vmlal.s16   q15, d9, d0[3]     \n"                  
+                    "vmla.f32   q8, q6, d2[0]       \n"// sum0 += (a10-a17) * k01
+                    "vmla.f32   q9, q7, d2[0]       \n"
+                    "vmla.f32   q10, q6, d2[1]      \n"// sum1 += (a10-a17) * k11
+                    "vmla.f32   q11, q7, d2[1]      \n"
+                    "vmla.f32   q12, q6, d3[0]      \n"// sum2 += (a10-a17) * k21
+                    "vmla.f32   q13, q7, d3[0]      \n"
+                    "vmla.f32   q14, q6, d3[1]      \n"// sum3 += (a10-a17) * k31
+                    "vmla.f32   q15, q7, d3[1]      \n"
 
-                    "vmlal.s16   q8, d10, d1[0]     \n"// sum0 += (a10-a17) * k01
-                    "vmlal.s16   q9, d11, d1[0]     \n"
-                    "vmlal.s16   q10, d10, d1[1]    \n"// sum1 += (a10-a17) * k11
-                    "vmlal.s16   q11, d11, d1[1]    \n"
-                    "vmlal.s16   q12, d10, d1[2]    \n"// sum2 += (a10-a17) * k21
-                    "vmlal.s16   q13, d11, d1[2]    \n"
-                    "vmlal.s16   q14, d10, d1[3]    \n"// sum3 += (a10-a17) * k31
-                    "vmlal.s16   q15, d11, d1[3]    \n"
+                    "pld        [%4, #512]          \n"
+                    "vldm       %4!, {d8-d15}       \n"// data
 
-                    "pld         [%4, #128]         \n"
-                    "vld1.s8     {d8-d9}, [%4]!     \n"// tmpr a00-a07,a10-a17,a20-a27,a30-a37    a(inch)(data)
-                    "vmovl.s8    q5, d9             \n"// a10-a17
-                    "vmovl.s8    q4, d8             \n"// a00-a07
+                    "vmla.f32   q8, q4, d4[0]       \n"// sum0 += (a20-a27) * k02
+                    "vmla.f32   q9, q5, d4[0]       \n"
+                    "vmla.f32   q10, q4, d4[1]      \n"// sum1 += (a20-a27) * k12
+                    "vmla.f32   q11, q5, d4[1]      \n"
+                    "vmla.f32   q12, q4, d5[0]      \n"// sum2 += (a20-a27) * k22
+                    "vmla.f32   q13, q5, d5[0]      \n"
+                    "vmla.f32   q14, q4, d5[1]      \n"// sum3 += (a20-a27) * k32
+                    "vmla.f32   q15, q5, d5[1]      \n"
 
-                    "vmlal.s16   q8, d12, d2[0]     \n"// sum0 += (a20-a27) * k02
-                    "vmlal.s16   q9, d13, d2[0]     \n"
-                    "vmlal.s16   q10, d12, d2[1]    \n"// sum1 += (a20-a27) * k12
-                    "vmlal.s16   q11, d13, d2[1]    \n"
-                    "vmlal.s16   q12, d12, d2[2]    \n"// sum2 += (a20-a27) * k22
-                    "vmlal.s16   q13, d13, d2[2]    \n"
-                    "vmlal.s16   q14, d12, d2[3]    \n"// sum3 += (a20-a27) * k32
-                    "vmlal.s16   q15, d13, d2[3]    \n"                      
-
-                    "vmlal.s16   q8, d14, d3[0]     \n"// sum0 += (a30-a37) * k03
-                    "vmlal.s16   q9, d15, d3[0]     \n"
-                    "vmlal.s16   q10, d14, d3[1]    \n"// sum1 += (a30-a37) * k13
-                    "vmlal.s16   q11, d15, d3[1]    \n"
-                    "vmlal.s16   q12, d14, d3[2]    \n"// sum2 += (a30-a37) * k23
-                    "vmlal.s16   q13, d15, d3[2]    \n"
-                    "vmlal.s16   q14, d14, d3[3]    \n"// sum3 += (a30-a37) * k33
-                    "vmlal.s16   q15, d15, d3[3]    \n"
-
-                    "pld         [%4, #128]         \n"
-                    "vld1.s8     {d0-d1}, [%4]!     \n"// tmpr a00-a07,a10-a17,a20-a27,a30-a37    a(inch)(data)
-                    "vmovl.s8    q1, d1             \n"// a10-a17
-                    "vmovl.s8    q0, d0             \n"// a00-a07
-
-                    "vmlal.s16   q8, d8, d4[0]      \n"// sum0 += (a40-a47) * k04
-                    "vmlal.s16   q9, d9, d4[0]      \n"
-                    "vmlal.s16   q10, d8, d4[1]     \n"// sum1 += (a40-a47) * k14
-                    "vmlal.s16   q11, d9, d4[1]     \n"
-                    "vmlal.s16   q12, d8, d4[2]     \n"// sum2 += (a40-a47) * k24
-                    "vmlal.s16   q13, d9, d4[2]     \n"
-                    "vmlal.s16   q14, d8, d4[3]     \n"// sum3 += (a40-a47) * k34
-                    "vmlal.s16   q15, d9, d4[3]     \n"                     
-
-                    "vmlal.s16   q8, d10, d5[0]     \n"// sum0 += (a50-a57) * k05
-                    "vmlal.s16   q9, d11, d5[0]     \n"
-                    "vmlal.s16   q10, d10, d5[1]    \n"// sum1 += (a50-a57) * k15
-                    "vmlal.s16   q11, d11, d5[1]    \n"
-                    "vmlal.s16   q12, d10, d5[2]    \n"// sum2 += (a50-a57) * k25
-                    "vmlal.s16   q13, d11, d5[2]    \n"
-                    "vmlal.s16   q14, d10, d5[3]    \n"// sum3 += (a50-a57) * k35
-                    "vmlal.s16   q15, d11, d5[3]    \n"                  
-
-                    "vmlal.s16   q8, d0, d6[0]      \n"// sum0 += (a60-a67) * k06
-                    "vmlal.s16   q9, d1, d6[0]      \n"
-                    "vmlal.s16   q10, d0, d6[1]     \n"// sum1 += (a60-a67) * k16
-                    "vmlal.s16   q11, d1, d6[1]     \n"
-                    "vmlal.s16   q12, d0, d6[2]     \n"// sum2 += (a60-a67) * k26
-                    "vmlal.s16   q13, d1, d6[2]     \n"
-                    "vmlal.s16   q14, d0, d6[3]     \n"// sum3 += (a60-a67) * k36
-                    "vmlal.s16   q15, d1, d6[3]     \n"                      
-
-                    "vmlal.s16   q8, d2, d7[0]      \n"// sum0 += (a70-a77) * k07
-                    "vmlal.s16   q9, d3, d7[0]      \n"
-                    "vmlal.s16   q10, d2, d7[1]     \n"// sum1 += (a70-a77) * k17
-                    "vmlal.s16   q11, d3, d7[1]     \n"
-                    "vmlal.s16   q12, d2, d7[2]     \n"// sum2 += (a70-a77) * k27
-                    "vmlal.s16   q13, d3, d7[2]     \n"
-                    "vmlal.s16   q14, d2, d7[3]     \n"// sum3 += (a70-a77) * k37
-                    "vmlal.s16   q15, d3, d7[3]     \n"                                        
+                    "vmla.f32   q8, q6, d6[0]       \n"// sum0 += (a30-a37) * k03
+                    "vmla.f32   q9, q7, d6[0]       \n"
+                    "vmla.f32   q10, q6, d6[1]      \n"// sum1 += (a30-a37) * k13
+                    "vmla.f32   q11, q7, d6[1]      \n"
+                    "vmla.f32   q12, q6, d7[0]      \n"// sum2 += (a30-a37) * k23
+                    "vmla.f32   q13, q7, d7[0]      \n"
+                    "vmla.f32   q14, q6, d7[1]      \n"// sum3 += (a30-a37) * k33
+                    "vmla.f32   q15, q7, d7[1]      \n"
 
                     "subs        r4, r4, #1         \n"
                     "bne         0b                 \n"// end for
 
                     "1:                             \n"
                     // remain loop
-                    "and         r4, %12, #7        \n"// r4 = remain = inch & 7
+                    "and         r4, %12, #3        \n"// r4 = remain = inch & 3
                     "cmp         r4, #0             \n"
                     "beq         3f                 \n"
 
                     "2:                             \n"// for(; remain != 0; remain--)
-                    "vld1.s8     {d2}, [%4]!        \n"// tmpr a00-a70    a(inch)(data)
-                    "vld1.s8     {d0}, [%5]         \n"// kptr k00-k30    k(outch)(inch)
-                    "vmovl.s8    q1, d2             \n"
-                    "vmovl.s8    q0, d0             \n"
-                    "add         %5, #4             \n"
 
-                    "vmlal.s16   q8, d2, d0[0]      \n"// sum0 += (a00-a70) * k00
-                    "vmlal.s16   q9, d3, d0[0]      \n"
-                    "vmlal.s16   q10, d2, d0[1]     \n"// sum1 += (a00-a70) * k10
-                    "vmlal.s16   q11, d3, d0[1]     \n"
-                    "vmlal.s16   q12, d2, d0[2]     \n"// sum2 += (a00-a70) * k20
-                    "vmlal.s16   q13, d3, d0[2]     \n"
-                    "vmlal.s16   q14, d2, d0[3]     \n"// sum3 += (a00-a70) * k30
-                    "vmlal.s16   q15, d3, d0[3]     \n"    
+                    "pld        [%5, #128]          \n"
+                    "vld1.f32   {d0-d1}, [%5]!      \n"
+                    "pld        [%4, #256]          \n"
+                    "vld1.f32   {d8-d11}, [%4]!     \n"
+
+                    "vmla.f32   q8, q4, d0[0]       \n"// sum0 += (a00-a70) * k00
+                    "vmla.f32   q9, q5, d0[0]       \n"
+                    "vmla.f32   q10, q4, d0[1]      \n"// sum1 += (a00-a70) * k10
+                    "vmla.f32   q11, q5, d0[1]      \n"
+                    "vmla.f32   q12, q4, d1[0]      \n"// sum2 += (a00-a70) * k20
+                    "vmla.f32   q13, q5, d1[0]      \n"
+                    "vmla.f32   q14, q4, d1[1]      \n"// sum3 += (a00-a70) * k30
+                    "vmla.f32   q15, q5, d1[1]      \n"    
 
                     "subs        r4, r4, #1         \n"
                     "bne         2b                 \n"
 
                     "3:                             \n"// store the result to memory
-                    "vst1.s32    {d16-d19}, [%0]    \n"
-                    "vst1.s32    {d20-d23}, [%1]    \n"
-                    "vst1.s32    {d24-d27}, [%2]    \n"
-                    "vst1.s32    {d28-d31}, [%3]    \n"
+                    "vst1.f32    {d16-d19}, [%0]    \n"
+                    "vst1.f32    {d20-d23}, [%1]    \n"
+                    "vst1.f32    {d24-d27}, [%2]    \n"
+                    "vst1.f32    {d28-d31}, [%3]    \n"
 
                     : "=r"(output0), // %0
                       "=r"(output1), // %1
@@ -1053,10 +1001,11 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
                       "3"(output3),
                       "4"(vb),
                       "5"(va),
-                      "r"(L)         // %12  
+                      "r"(L),        // %12 
+                      "r"(biasptr)   // %13
                     : "cc", "memory", "r4", "q0", "q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8", "q9", "q10", "q11", "q12", "q13", "q14", "q15"                    
                 );
-#endif // __aarch64__                                
+#endif // __aarch64__
 #else
                 float sum0[8] = {0};
                 float sum1[8] = {0};
@@ -1158,26 +1107,27 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
                 const float* va = kernel_tm.channel(i/4);
 #endif // __ARM_NEON && __aarch64__
 
-#if 1 //__ARM_NEON
-#if 1 //__aarch64__
+#if __ARM_NEON
+#if __aarch64__
                 asm volatile(
                     "ld1    {v14.4s}, [%13]              \n" // sum0_3 inital with bias
-                    "eor    v16.16b, v16.16b, v16.16b    \n" // sum0
-                    "eor    v17.16b, v17.16b, v17.16b    \n" // sum1
-                    "eor    v18.16b, v18.16b, v18.16b    \n" // sum2
-                    "eor    v19.16b, v19.16b, v19.16b    \n" // sum3
 
                     "lsr         w4, %w12, #2            \n"// r4 = nn = L >> 2
                     "cmp         w4, #0                  \n"
                     "beq         1f                      \n"
 
+                    "eor    v16.16b, v16.16b, v16.16b    \n" // sum0
+                    "eor    v17.16b, v17.16b, v17.16b    \n" // sum1
+                    "eor    v18.16b, v18.16b, v18.16b    \n" // sum2
+                    "eor    v19.16b, v19.16b, v19.16b    \n" // sum3                    
+
                     "0:                                  \n"// for (; k+3<L; k=k+4)
 
-                    "prfm   pldl1keep, [%9, #256]                       \n"
-                    "ld1    {v0.4s, v1.4s, v2.4s, v3.4s}, [%9], #64     \n" // k
+                    "prfm   pldl1keep, [%5, #256]                       \n"
+                    "ld1    {v0.4s, v1.4s, v2.4s, v3.4s}, [%5], #64     \n" // k
 
-                    "prfm   pldl1keep, [%8, #128]        \n"
-                    "ld1    {v8.4s}, [%8], #16           \n" // d
+                    "prfm   pldl1keep, [%4, #128]        \n"
+                    "ld1    {v8.4s}, [%4], #16           \n" // d
 
                     "subs   w4, w4, #1                   \n"
                     "fmla    v16.4s, v0.4s, v8.s[0]      \n"// sum0 += (k00-k30) * a00
@@ -1200,10 +1150,10 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
 
                     "2:                                  \n"
 
-                    "prfm   pldl1keep, [%9, #128]        \n"
-                    "ld1    {v0.4s}, [%9], #16           \n"
-                    "prfm   pldl1keep, [%8, #32]         \n"
-                    "ld1r   {v8.4s}, [%8], #4            \n"
+                    "prfm   pldl1keep, [%5, #128]        \n"
+                    "ld1    {v0.4s}, [%5], #16           \n"
+                    "prfm   pldl1keep, [%4, #32]         \n"
+                    "ld1r   {v8.4s}, [%4], #4            \n"
 
                     "subs   w4, w4, #1                   \n"
                     // k0
@@ -1236,77 +1186,58 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
 #else
                 asm volatile(
                     // inch loop
-                    "veor        q6, q6, q6        \n"
-                    "veor        q7, q7, q7        \n"
-                    "veor        q8, q8, q8        \n"
-                    "veor        q9, q9, q9        \n"
-                    "veor        q10, q10, q10     \n"
-                    "veor        q11, q11, q11     \n"
-                    "veor        q12, q12, q12     \n"
-                    "veor        q13, q13, q13     \n"                    
-                    "vmov.s32    q14, #0           \n"
+                    "vld1.f32   {d24-d25}, [%13]    \n"
 
-                    "lsr         r4, %12, #3       \n"// r4 = nn = L >> 2
-                    "cmp         r4, #0            \n"
-                    "beq         1f                \n"
+                    "lsr         r4, %12, #2        \n"// r4 = nn = L >> 2
+                    "cmp         r4, #0             \n"
+                    "beq         1f                 \n"
+
+                    "veor       q8, q8, q8          \n"
+                    "veor       q9, q9, q9          \n"
+                    "veor       q10, q10, q10       \n"
+                    "veor       q11, q11, q11       \n"
                     
-                    "0:                            \n"// for(; nn != 0; nn--)
-                    "pld         [%4, #128]        \n"
-                    "vld1.s8     {d0}, [%4]!       \n"// tmpr a00,a10,a20,a30    a(inch)(data)
-                    "vmovl.s8    q0, d0            \n"// a00-a07
+                    "0:                             \n"// for(; nn != 0; nn--)
+                    "pld        [%5, #512]          \n"
+                    "vldm       %5!, {d0-d7}        \n"// kernel
+                    "pld        [%4, #128]          \n"
+                    "vld1.f32   {d8-d9}, [%4]!      \n"// data
 
-                    "pld         [%5, #128]        \n"
-                    "vld1.s8     {d2-d5}, [%5]!    \n"// kptr k00-k30,k01-k31, k02-k32,k03-k33, k04-k34,k05-k35, k06-k36,k07-k37    k(outch)(inch)
-                    "vmovl.s8    q4, d5            \n"// k06-k36,k07-k37
-                    "vmovl.s8    q3, d4            \n"// k04-k34,k05-k35
-                    "vmovl.s8    q2, d3            \n"// k02-k32,k03-k33
-                    "vmovl.s8    q1, d2            \n"// k00-k30,k01-k31
+                    "vmla.f32   q8, q0, d8[0]       \n"// (k00-k30) * a00
+                    "vmla.f32   q9, q1, d8[1]       \n"// (k01-k31) * a01
+                    "vmla.f32   q10, q2, d9[0]      \n"// (k02-k32) * a02
+                    "vmla.f32   q11, q3, d9[1]      \n"// (k03-k33) * a03
 
-                    "vmlal.s16   q6, d2, d0[0]     \n"// (k00-k30) * a00
-                    "vmlal.s16   q7, d3, d0[1]     \n"// (k01-k31) * a01
-                    "vmlal.s16   q8, d4, d0[2]     \n"// (k02-k32) * a02
-                    "vmlal.s16   q9, d5, d0[3]     \n"// (k03-k33) * a03
-                    "vmlal.s16   q10, d6, d1[0]    \n"// (k04-k34) * a04
-                    "vmlal.s16   q11, d7, d1[1]    \n"// (k05-k35) * a05
-                    "vmlal.s16   q12, d8, d1[2]    \n"// (k06-k36) * a06
-                    "vmlal.s16   q13, d9, d1[3]    \n"// (k07-k37) * a07                    
+                    "subs        r4, r4, #1         \n"
+                    "bne         0b                 \n"// end for
 
-                    "subs        r4, r4, #1        \n"
-                    "bne         0b                \n"// end for
-
-                    "vadd.s32    q6, q6, q7        \n"
-                    "vadd.s32    q9, q9, q8        \n"
-                    "vadd.s32    q11, q11, q10     \n"
-                    "vadd.s32    q13, q13, q12     \n"
-
-                    "vadd.s32    q9, q9, q6        \n"
-                    "vadd.s32    q13, q13, q11     \n"
-                    "vadd.s32    q14, q13, q9      \n"
+                    "vadd.f32   q8, q8, q9          \n"
+                    "vadd.f32   q10, q10, q11       \n"
+                    "vadd.f32   q8, q8, q10         \n"
+                    "vadd.f32   q12, q12, q8        \n"
     
-                    "1:                            \n"
+                    "1:                             \n"
                     // remain loop
-                    "and         r4, %12, #7       \n"// r4 = remain = inch & 3
-                    "cmp         r4, #0            \n"
-                    "beq         3f                \n"
+                    "and         r4, %12, #3        \n"// r4 = remain = inch & 3
+                    "cmp         r4, #0             \n"
+                    "beq         3f                 \n"
 
-                    "2:                            \n"// for(; remain != 0; remain--)
-                    "vld1.s8     {d2}, [%4]        \n"// tmpr a00        a(inch)(data)
-                    "vld1.s8     {d0}, [%5]        \n"// kptr k00-k30    k(outch)(inch)
-                    "vmovl.s8    q1, d2            \n"
-                    "vmovl.s8    q0, d0            \n"
-                    "add         %4, #1            \n"
-                    "add         %5, #4            \n"
+                    "2:                             \n"// for(; remain != 0; remain--)
+                    "pld        [%5, #128]          \n"
+                    "vld1.f32   {d0-d1}, [%5]!      \n"
+                    "pld        [%4, #32]           \n"
+                    "vld1.f32   {d8[],d9[]}, [%4]!  \n"
 
-                    "vmlal.s16   q14, d0, d2[0]    \n"
+                    "subs       r4, r4, #1          \n"
 
-                    "subs        r4, r4, #1        \n"
-                    "bne         2b                \n"
+                    "vmla.f32   q12, q0, q4         \n"
+                    "bne         2b                 \n"
 
-                    "3:                            \n"// store the result to memory
-                    "vst1.s32    {d28[0]}, [%0]    \n"
-                    "vst1.s32    {d28[1]}, [%1]    \n"
-                    "vst1.s32    {d29[0]}, [%2]    \n"
-                    "vst1.s32    {d29[1]}, [%3]    \n"
+                    "3:                             \n"// store the result to memory
+                    "vst1.f32    {d24[0]}, [%0]     \n"
+                    "vst1.f32    {d24[1]}, [%1]     \n"
+                    "vst1.f32    {d25[0]}, [%2]     \n"
+                    "vst1.f32    {d25[1]}, [%3]     \n"
 
                     : "=r"(output0), // %0
                       "=r"(output1), // %1
@@ -1320,10 +1251,11 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
                       "3"(output3),
                       "4"(vb),
                       "5"(va),
-                      "r"(L)         // %12  
-                    : "cc", "memory", "r4", "q0", "q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8", "q9", "q10", "q11", "q12", "q13", "q14"
+                      "r"(L),        // %12 
+                      "r"(biasptr)   // %13 
+                    : "cc", "memory", "r4", "q0", "q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8", "q9", "q10", "q11", "q12"
                 );
-#endif // __aarch64__                            
+#endif // __aarch64__
 #else
                 float sum0 = biasptr[0];
                 float sum1 = biasptr[1];
@@ -1365,15 +1297,15 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
             int j=0;
             for (; j+7<N; j=j+8)
             {
-                float* vb = bottom_tm.channel(j/8);
+                const float* vb = bottom_tm.channel(j/8);
 #if __ARM_NEON && __aarch64__
                 const float* va = kernel_tm.channel(i/8 + (i%8)/4 + i%4);
 #else                
                 const float* va = kernel_tm.channel(i/4 + i%4);
 #endif // __ARM_NEON && __aarch64__
 
-#if 1 //__ARM_NEON
-#if 1 //__aarch64__
+#if __ARM_NEON
+#if __aarch64__
                 asm volatile(
                     "dup    v16.4s, %w7                  \n" // sum0
                     "dup    v17.4s, %w7                  \n" // sum0n
@@ -1442,76 +1374,58 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
                 );
 #else
                 asm volatile(
+                    "vdup.f32   q8, %7              \n"
+                    "vdup.f32   q9, %7              \n"
                     // inch loop
-                    "vmov.s32    q6, #0            \n"
-                    "vmov.s32    q7, #0            \n"
+                    "lsr        r4, %6, #2          \n"// r4 = nn = inch >> 2
+                    "cmp        r4, #0              \n"
+                    "beq        1f                  \n"
 
-                    "lsr         r4, %6, #3        \n"// r4 = nn = inch >> 3
-                    "cmp         r4, #0            \n"
-                    "beq         1f                \n"
-                    
-                    "0:                            \n"// for(; nn != 0; nn--)
-                    "pld         [%1, #128]        \n"
-                    "vld1.s8     {d4-d7}, [%1]!    \n"// tmpr a00-a07,a10-a17,a20-a27,a30-a37    a(inch)(data)
-                    "vmovl.s8    q5, d7            \n"// a30-a37
-                    "vmovl.s8    q4, d6            \n"// a20-a27
-                    "vmovl.s8    q3, d5            \n"// a10-a17
-                    "vmovl.s8    q2, d4            \n"// a00-a07
+                    "0:                             \n"
 
-                    "pld         [%2, #128]        \n"
-                    "vld1.s8     {d0}, [%2]!       \n"// kptr k00-k07    k(outch)(inch)
-                    "vmovl.s8    q1, d1            \n"// k04,k05,k06,k07
-                    "vmovl.s8    q0, d0            \n"// k00,k01,k02,k03
+                    "pld        [%1, #512]          \n"
+                    "vldm       %1!, {d8-d15}       \n"
+                    "pld        [%2, #128]          \n"
+                    "vld1.f32   {d0-d1}, [%2]!      \n"
 
-                    "vmlal.s16   q6, d4, d0[0]     \n"// (a00-a07) * k00
-                    "vmlal.s16   q7, d5, d0[0]     \n"
-                    "vmlal.s16   q6, d6, d0[1]     \n"// (a10-a17) * k01
-                    "vmlal.s16   q7, d7, d0[1]     \n"
-                    "vmlal.s16   q6, d8, d0[2]     \n"// (a20-a27) * k02
-                    "vmlal.s16   q7, d9, d0[2]     \n"
-                    "vmlal.s16   q6, d10, d0[3]    \n"// (a30-a37) * k03
-                    "vmlal.s16   q7, d11, d0[3]    \n"
+                    "vmla.f32   q8, q4, d0[0]       \n"
+                    "vmla.f32   q9, q5, d0[0]       \n"
 
-                    "pld         [%1, #128]        \n"
-                    "vld1.s8     {d4-d7}, [%1]!    \n"// tmpr a40-a47,a50-a57,a60-a67,a70-a77    a(inch)(data)
-                    "vmovl.s8    q5, d7            \n"// a70-a77
-                    "vmovl.s8    q4, d6            \n"// a60-a67
-                    "vmovl.s8    q3, d5            \n"// a50-a57
-                    "vmovl.s8    q2, d4            \n"// a40-a47
+                    "pld        [%1, #512]          \n"
+                    "vldm       %1!, {d24-d31}      \n"
 
-                    "vmlal.s16   q6, d4, d1[0]     \n"// (a00-a07) * k00
-                    "vmlal.s16   q7, d5, d1[0]     \n"
-                    "vmlal.s16   q6, d6, d1[1]     \n"// (a10-a17) * k01
-                    "vmlal.s16   q7, d7, d1[1]     \n"
-                    "vmlal.s16   q6, d8, d1[2]     \n"// (a20-a27) * k02
-                    "vmlal.s16   q7, d9, d1[2]     \n"
-                    "vmlal.s16   q6, d10, d1[3]    \n"// (a30-a37) * k03
-                    "vmlal.s16   q7, d11, d1[3]    \n"                    
+                    "vmla.f32   q8, q6, d0[1]       \n"
+                    "vmla.f32   q9, q7, d0[1]       \n"
 
-                    "subs        r4, r4, #1        \n"
-                    "bne         0b                \n"// end for
-    
-                    "1:                            \n"
+                    "subs       r4, r4, #1          \n"
+
+                    "vmla.f32   q8, q12, d1[0]      \n"
+                    "vmla.f32   q9, q13, d1[0]      \n"
+                    "vmla.f32   q8, q14, d1[1]      \n"
+                    "vmla.f32   q9, q15, d1[1]      \n"
+
+                    "bne        0b                  \n"
+
+                    "1:                             \n"
                     // remain loop
-                    "and         r4, %6, #7        \n"// r4 = remain = inch & 7
-                    "cmp         r4, #0            \n"
-                    "beq         3f                \n"
+                    "and        r4, %6, #3          \n"// r4 = remain = inch & 3;
+                    "cmp        r4, #0              \n"
+                    "beq        3f                  \n"
 
-                    "2:                            \n"// for(; remain != 0; remain--)
-                    "vld1.s8     {d2}, [%1]!       \n"// tmpr a00-a07    a(inch)(data)
-                    "vld1.s8     {d0}, [%2]        \n"// kptr k00        k(outch)(inch)
-                    "vmovl.s8    q1, d2            \n"
-                    "vmovl.s8    q0, d0            \n"
-                    "add         %2, #1            \n"
+                    "2:                             \n"
+                    "pld        [%1, #256]          \n"
+                    "vld1.f32   {d8-d11}, [%1]!     \n"
+                    "pld        [%2, #32]           \n"
+                    "vld1.f32   {d0[],d1[]}, [%2]!  \n"
 
-                    "vmlal.s16   q6, d2, d0[0]     \n"// (a00-a07) * k00
-                    "vmlal.s16   q7, d3, d0[0]     \n"  
+                    "subs       r4, r4, #1          \n"
 
-                    "subs        r4, r4, #1        \n"
-                    "bne         2b                \n"
+                    "vmla.f32   q8, q4, q0          \n"
+                    "vmla.f32   q9, q5, q0          \n"
+                    "bne        2b                  \n"
 
-                    "3:                            \n"// store the result to memory
-                    "vst1.s32    {d12-d15}, [%0]   \n"
+                    "3:                             \n"
+                    "vst1.f32   {d16-d19}, [%0]     \n"
 
                     : "=r"(output), // %0
                       "=r"(vb),     // %1
@@ -1519,10 +1433,11 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
                     : "0"(output),
                       "1"(vb),
                       "2"(va),
-                      "r"(L)        // %6  
-                    : "cc", "memory", "r4", "q0", "q1", "q2", "q3", "q4", "q5", "q6", "q7"
+                      "r"(L),       // %6 
+                      "r"(bias0)    // %7 
+                    : "cc", "memory", "r4", "q0", "q4", "q5", "q6", "q7", "q8", "q9", "q12", "q13", "q14", "q15"
                 );
-#endif // __aarch64__                                         
+#endif // __aarch64__
 #else                
                 float sum[8] = {0};
 
@@ -1566,23 +1481,49 @@ static void conv_im2col_sgemm_neon(const Mat &bottom_blob, Mat &top_blob, const 
 
             for (; j<N; j++)
             {
-                float sum = bias0;
-
-                float* vb = bottom_tm.channel(j/8 + j%8);
+                const float* vb = bottom_tm.channel(j/8 + j%8);
 #if __ARM_NEON && __aarch64__
                 const float* va = kernel_tm.channel(i/8 + (i%8)/4 + i%4);
 #else                
                 const float* va = kernel_tm.channel(i/4 + i%4);
 #endif // __ARM_NEON && __aarch64__
 
+                int k=0;
+#if __ARM_NEON
+                float32x4_t _sum0 = vdupq_n_f32(0.f);
+
+                for (; k+3<L; k+=4)
+                {
+                    float32x4_t _p0 = vld1q_f32(vb);
+                    vb += 4;
+
+                    float32x4_t _k0 = vld1q_f32(va);
+                    va += 4;
+
+#if __aarch64__
+                    _sum0 = vfmaq_f32(_sum0, _p0, _k0);
+#else
+                    _sum0 = vmlaq_f32(_sum0, _p0, _k0);
+#endif
+                }
+
+#if __aarch64__
+                float sum0 = bias0 + vaddvq_f32(_sum0);
+#else
+                float32x2_t _ss = vadd_f32(vget_low_f32(_sum0), vget_high_f32(_sum0));
+                float sum0 = bias0 + vget_lane_f32(vpadd_f32(_ss, _ss), 0);
+#endif
+#else
+                float sum0 = bias0;
+#endif // __ARM_NEON
                 for (int k=0; k<L; k++)
                 {
-                    sum += va[0] * vb[0];
+                    sum0 += va[0] * vb[0];
 
                     va += 1;
                     vb += 1;
                 }
-                output[0] = sum;
+                output[0] = sum0;
 
                 output++;
             }
