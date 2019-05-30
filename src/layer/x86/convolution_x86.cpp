@@ -19,10 +19,11 @@
 
 namespace ncnn {
 
+#include "convolution_sgemm.h"
 #include "convolution_1x1.h"
 #include "convolution_3x3.h"
 #include "convolution_5x5.h"
-#include "convolution_sgemm.h"
+#include "convolution_7x7.h"
 #include "convolution_sgemm_int8.h"
 #include "convolution_1x1_int8.h"
 #include "convolution_3x3_int8.h"
@@ -288,7 +289,7 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
         }, // kernel_size = 4
         {
             conv5x5s1_sse,
-            0,
+            conv5x5s2_sse,
             0,
             0
         }, // kernel_size = 5
@@ -299,8 +300,8 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
             0
         }, // kernel_size = 6
         {
-            0,          
-            0,          
+            conv7x7s1_sse,          
+            conv7x7s2_sse,          
             0,
             0
         }  // kernel_size = 7        
@@ -400,7 +401,7 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
             0,
             0
         }  // kernel_size = 7
-    };    
+    };
 
     conv_func conv = 0;
     conv_int8_dequant_func conv_int8_dequant = 0;
@@ -420,10 +421,10 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     else
     {
         conv = conv_func_table[kernel_size-1][stride-1];
-        // if (!conv)
-        // {
-        //     return Convolution::forward(bottom_blob, top_blob, opt);
-        // }
+        if (!conv)
+        {
+            return Convolution::forward(bottom_blob, top_blob, opt);
+        }
 
         if (dilation_w != 1)
         {
@@ -522,7 +523,7 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
                 }
             }
             else
-                conv_int8_requant(bottom_blob_bordered, top_blob, weight_data, bias_data, requantize_scales, opt);                                                    
+                conv_int8_requant(bottom_blob_bordered, top_blob, weight_data, bias_data, requantize_scales, opt);
         }
         else
         {
@@ -553,7 +554,7 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
 
 #if DEBUG_FEATURE
         extract_feature_out_f32(0, this->name.c_str(), top_blob);
-#endif         
+#endif
     
         return 0;
     }
@@ -567,17 +568,15 @@ int Convolution_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     {
         //conv3x3s1_winograd23_sse(bottom_blob_bordered, top_blob, weight_3x3_winograd23_data, bias_data, opt);
         conv3x3s1_winograd43_sse(bottom_blob_bordered, top_blob, weight_3x3_winograd23_data, bias_data, opt);
-    }    
+    }
     else
         //conv(bottom_blob_bordered, top_blob, weight_data, bias_data, opt);
         conv_im2col_sgemm_sse(bottom_blob_bordered, top_blob, weight_sgemm_data, bias_data, kernel_w, kernel_h, stride_w, stride_h, opt);
 
-
 #if DEBUG_FEATURE
         extract_feature_out_f32(0, this->name.c_str(), top_blob);
-#endif 
+#endif
 
-       
     if (activation)
     {
         activation->forward_inplace(top_blob, opt);
