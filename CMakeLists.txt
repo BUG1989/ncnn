@@ -43,6 +43,7 @@ endif()
 
 #add_definitions(-DDEBUG_FEATURE)
 #add_definitions(-DDEBUG_TIME)
+#add_definitions(-DDEBUG_FUSE)
 
 if(NCNN_VULKAN)
     find_package(Vulkan REQUIRED)
@@ -86,11 +87,13 @@ elseif(IOS)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions")
 endif()
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfma ")
+
 ##############################################
 
 # add_subdirectory(examples)
 add_subdirectory(benchmark)
 add_subdirectory(src)
 if(NOT ANDROID AND NOT IOS)
-add_subdirectory(tools)
+# add_subdirectory(tools)
 endif()

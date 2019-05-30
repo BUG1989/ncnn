@@ -177,8 +177,7 @@ static void conv_im2col_sgemm_sse(const Mat &bottom_blob, Mat &top_blob, const M
             for (int q=0; q<inch*kernel_size; q++)
             {
 #if __AVX__
-                _mm_storeu_ps(tmpptr, _mm_loadu_ps(img0));
-                _mm_storeu_ps(tmpptr+4, _mm_loadu_ps(img0+4));
+                _mm256_storeu_ps(tmpptr, _mm256_loadu_ps(img0));
 #else                
                 tmpptr[0] = img0[0];
                 tmpptr[1] = img0[1];
@@ -523,7 +522,7 @@ static void conv_im2col_sgemm_sse(const Mat &bottom_blob, Mat &top_blob, const M
                 const float* vb = bottom_tm.channel(j/8 + j%8);
                 const float* va = kernel_tm.channel(i/8);
 
-#if 1 //__AVX__
+#if __AVX__
                 __m256 _sum0_7 = _mm256_loadu_ps(biasptr);
                 __m256 _sum0 = _mm256_set1_ps(0.0);
                 __m256 _sum1 = _mm256_set1_ps(0.0);
@@ -537,14 +536,17 @@ static void conv_im2col_sgemm_sse(const Mat &bottom_blob, Mat &top_blob, const M
                     __m256 _vb1 = _mm256_broadcast_ss(vb+1);
                     __m256 _vb2 = _mm256_broadcast_ss(vb+2);
                     __m256 _vb3 = _mm256_broadcast_ss(vb+3);
-                    __m256 _va = _mm256_loadu_ps(va); 
+                    __m256 _va0 = _mm256_loadu_ps(va);
+                    __m256 _va1 = _mm256_loadu_ps(va+8);
+                    __m256 _va2 = _mm256_loadu_ps(va+16);
+                    __m256 _va3 = _mm256_loadu_ps(va+24);
 
-                    _sum0 = _mm256_fmadd_ps(_va, _vb0, _sum0);// sum0 += (k00-k70) * a00
-                    _sum1 = _mm256_fmadd_ps(_va, _vb1, _sum1);// sum1 += (k01-k71) * a10
-                    _sum2 = _mm256_fmadd_ps(_va, _vb2, _sum2);// sum2 += (k02-k72) * a20
-                    _sum3 = _mm256_fmadd_ps(_va, _vb3, _sum3);// sum3 += (k03-k73) * a30
+                    _sum0 = _mm256_fmadd_ps(_va0, _vb0, _sum0);// sum0 += (k00-k70) * a00
+                    _sum1 = _mm256_fmadd_ps(_va1, _vb1, _sum1);// sum1 += (k01-k71) * a10
+                    _sum2 = _mm256_fmadd_ps(_va2, _vb2, _sum2);// sum2 += (k02-k72) * a20
+                    _sum3 = _mm256_fmadd_ps(_va3, _vb3, _sum3);// sum3 += (k03-k73) * a30
 
-                    va += 8;
+                    va += 32;
                     vb += 4;
                 }
 
@@ -637,123 +639,90 @@ static void conv_im2col_sgemm_sse(const Mat &bottom_blob, Mat &top_blob, const M
             {
                 const float* vb = bottom_tm.channel(j/8);
                 const float* va = kernel_tm.channel(i/8 + (i%8)/4);
-#if 0 //__AVX__
-                __m128 _sum0 = _mm_set1_ps(biasptr[0]);
-                __m128 _sum0n = _mm_set1_ps(biasptr[0]);
-                __m128 _sum1 = _mm_set1_ps(biasptr[1]);
-                __m128 _sum1n = _mm_set1_ps(biasptr[1]);
-                __m128 _sum2 = _mm_set1_ps(biasptr[2]);
-                __m128 _sum2n = _mm_set1_ps(biasptr[2]);
-                __m128 _sum3 = _mm_set1_ps(biasptr[3]);
-                __m128 _sum3n = _mm_set1_ps(biasptr[3]);
+#if __AVX__
+                __m256 _sum0 = _mm256_broadcast_ss(biasptr);
+                __m256 _sum1 = _mm256_broadcast_ss(biasptr+1);
+                __m256 _sum2 = _mm256_broadcast_ss(biasptr+2);
+                __m256 _sum3 = _mm256_broadcast_ss(biasptr+3);
 
                 int k=0;
                 for (; k+3<L; k=k+4)
                 {
                     // k0
-                    __m128 _va0 = _mm_set1_ps(va[0]);
-                    __m128 _va1 = _mm_set1_ps(va[1]);
-                    __m128 _va2 = _mm_set1_ps(va[2]);
-                    __m128 _va3 = _mm_set1_ps(va[3]);
-                    __m128 _vb0 = _mm_loadu_ps(vb); 
-                    __m128 _vb0n = _mm_loadu_ps(vb+4); 
-                    __m128 _vb1 = _mm_loadu_ps(vb+8); 
-                    __m128 _vb1n = _mm_loadu_ps(vb+12);
-                    
-                    _sum0 = _mm_fmadd_ps(_vb0, _va0, _sum0);    // sum0 = (a00-a07) * k00
-                    _sum0n = _mm_fmadd_ps(_vb0n, _va0, _sum0n);
-                    _sum1 = _mm_fmadd_ps(_vb0, _va1, _sum1);    // sum1 = (a00-a07) * k10
-                    _sum1n = _mm_fmadd_ps(_vb0n, _va1, _sum1n);
-                    _sum2 = _mm_fmadd_ps(_vb0, _va2, _sum2);    // sum2 = (a00-a07) * k20
-                    _sum2n = _mm_fmadd_ps(_vb0n, _va2, _sum2n);
-                    _sum3 = _mm_fmadd_ps(_vb0, _va3, _sum3);    // sum3 = (a00-a07) * k30
-                    _sum3n = _mm_fmadd_ps(_vb0n, _va3, _sum3n);
+                    __m256 _va0 = _mm256_broadcast_ss(va);
+                    __m256 _va1 = _mm256_broadcast_ss(va+1);
+                    __m256 _va2 = _mm256_broadcast_ss(va+2);
+                    __m256 _va3 = _mm256_broadcast_ss(va+3);
+                    __m256 _vb0 = _mm256_loadu_ps(vb);
+                    __m256 _vb1 = _mm256_loadu_ps(vb+8);
+                    __m256 _vb2 = _mm256_loadu_ps(vb+16);
+                    __m256 _vb3 = _mm256_loadu_ps(vb+24);
+                    _sum0 = _mm256_fmadd_ps(_vb0, _va0, _sum0);    // sum0 = (a00-a07) * k00
+                    _sum1 = _mm256_fmadd_ps(_vb0, _va1, _sum1);    // sum1 = (a00-a07) * k10
+                    _sum2 = _mm256_fmadd_ps(_vb0, _va2, _sum2);    // sum2 = (a00-a07) * k20
+                    _sum3 = _mm256_fmadd_ps(_vb0, _va3, _sum3);    // sum3 = (a00-a07) * k30
+
+                    va += 4;
 
                     // k1
-                    _va0 = _mm_set1_ps(va[4]);
-                    _va1 = _mm_set1_ps(va[5]);
-                    _va2 = _mm_set1_ps(va[6]);
-                    _va3 = _mm_set1_ps(va[7]);
-                    _sum0 = _mm_fmadd_ps(_vb1, _va0, _sum0);    // sum0 += (a10-a17) * k01
-                    _sum0n = _mm_fmadd_ps(_vb1n, _va0, _sum0n);
-                    _sum1 = _mm_fmadd_ps(_vb1, _va1, _sum1);    // sum1 += (a10-a17) * k11
-                    _sum1n = _mm_fmadd_ps(_vb1n, _va1, _sum1n);
-                    _sum2 = _mm_fmadd_ps(_vb1, _va2, _sum2);    // sum2 += (a10-a17) * k21
-                    _sum2n = _mm_fmadd_ps(_vb1n, _va2, _sum2n);
-                    _sum3 = _mm_fmadd_ps(_vb1, _va3, _sum3);    // sum3 += (a10-a17) * k31
-                    _sum3n = _mm_fmadd_ps(_vb1n, _va3, _sum3n);
+                    _va0 = _mm256_broadcast_ss(va);
+                    _va1 = _mm256_broadcast_ss(va+1);
+                    _va2 = _mm256_broadcast_ss(va+2);
+                    _va3 = _mm256_broadcast_ss(va+3);                  
+                    _sum0 = _mm256_fmadd_ps(_vb1, _va0, _sum0);    // sum0 += (a10-a17) * k01
+                    _sum1 = _mm256_fmadd_ps(_vb1, _va1, _sum1);    // sum1 += (a10-a17) * k11
+                    _sum2 = _mm256_fmadd_ps(_vb1, _va2, _sum2);    // sum2 += (a10-a17) * k21
+                    _sum3 = _mm256_fmadd_ps(_vb1, _va3, _sum3);    // sum3 += (a10-a17) * k31
 
-                    va += 8;
-                    vb += 16;
+                    va += 4;
 
                     // k2
-                    _va0 = _mm_set1_ps(va[0]);
-                    _va1 = _mm_set1_ps(va[1]);
-                    _va2 = _mm_set1_ps(va[2]);
-                    _va3 = _mm_set1_ps(va[3]);
-                    _vb0 = _mm_loadu_ps(vb); 
-                    _vb0n = _mm_loadu_ps(vb+4); 
-                    _vb1 = _mm_loadu_ps(vb+8); 
-                    _vb1n = _mm_loadu_ps(vb+12);
-                    
-                    _sum0 = _mm_fmadd_ps(_vb0, _va0, _sum0);    // sum0 += (a20-a27) * k02
-                    _sum0n = _mm_fmadd_ps(_vb0n, _va0, _sum0n);
-                    _sum1 = _mm_fmadd_ps(_vb0, _va1, _sum1);    // sum1 += (a20-a27) * k12
-                    _sum1n = _mm_fmadd_ps(_vb0n, _va1, _sum1n);
-                    _sum2 = _mm_fmadd_ps(_vb0, _va2, _sum2);    // sum2 += (a20-a27) * k22
-                    _sum2n = _mm_fmadd_ps(_vb0n, _va2, _sum2n);
-                    _sum3 = _mm_fmadd_ps(_vb0, _va3, _sum3);    // sum3 += (a20-a27) * k32
-                    _sum3n = _mm_fmadd_ps(_vb0n, _va3, _sum3n);
+                    _va0 = _mm256_broadcast_ss(va);
+                    _va1 = _mm256_broadcast_ss(va+1);
+                    _va2 = _mm256_broadcast_ss(va+2);
+                    _va3 = _mm256_broadcast_ss(va+3);
+                    _sum0 = _mm256_fmadd_ps(_vb2, _va0, _sum0);    // sum0 += (a20-a27) * k02
+                    _sum1 = _mm256_fmadd_ps(_vb2, _va1, _sum1);    // sum1 += (a20-a27) * k12
+                    _sum2 = _mm256_fmadd_ps(_vb2, _va2, _sum2);    // sum2 += (a20-a27) * k22
+                    _sum3 = _mm256_fmadd_ps(_vb2, _va3, _sum3);    // sum3 += (a20-a27) * k32
+
+                    va += 4;                  
 
                     // k3
-                    _va0 = _mm_set1_ps(va[4]);
-                    _va1 = _mm_set1_ps(va[5]);
-                    _va2 = _mm_set1_ps(va[6]);
-                    _va3 = _mm_set1_ps(va[7]);
-                    _sum0 = _mm_fmadd_ps(_vb1, _va0, _sum0);    // sum0 += (a30-a37) * k03
-                    _sum0n = _mm_fmadd_ps(_vb1n, _va0, _sum0n);
-                    _sum1 = _mm_fmadd_ps(_vb1, _va1, _sum1);    // sum1 += (a30-a37) * k13
-                    _sum1n = _mm_fmadd_ps(_vb1n, _va1, _sum1n);
-                    _sum2 = _mm_fmadd_ps(_vb1, _va2, _sum2);    // sum2 += (a30-a37) * k23
-                    _sum2n = _mm_fmadd_ps(_vb1n, _va2, _sum2n);
-                    _sum3 = _mm_fmadd_ps(_vb1, _va3, _sum3);    // sum3 += (a30-a37) * k33
-                    _sum3n = _mm_fmadd_ps(_vb1n, _va3, _sum3n);  
+                    _va0 = _mm256_broadcast_ss(va);
+                    _va1 = _mm256_broadcast_ss(va+1);
+                    _va2 = _mm256_broadcast_ss(va+2);
+                    _va3 = _mm256_broadcast_ss(va+3);
+                    _sum0 = _mm256_fmadd_ps(_vb3, _va0, _sum0);    // sum0 += (a30-a37) * k03
+                    _sum1 = _mm256_fmadd_ps(_vb3, _va1, _sum1);    // sum1 += (a30-a37) * k13
+                    _sum2 = _mm256_fmadd_ps(_vb3, _va2, _sum2);    // sum2 += (a30-a37) * k23
+                    _sum3 = _mm256_fmadd_ps(_vb3, _va3, _sum3);    // sum3 += (a30-a37) * k33                   
 
-                    va += 8;
-                    vb += 16;
+                    va += 4;
+                    vb += 32;
                 }
 
                 for (; k<L; k++)
                 {
                     // k0
-                    __m128 _va0 = _mm_set1_ps(va[0]);
-                    __m128 _va1 = _mm_set1_ps(va[1]);
-                    __m128 _va2 = _mm_set1_ps(va[2]);
-                    __m128 _va3 = _mm_set1_ps(va[3]);
-                    __m128 _vb0 = _mm_loadu_ps(vb); 
-                    __m128 _vb0n = _mm_loadu_ps(vb+4); 
-                    
-                    _sum0 = _mm_fmadd_ps(_vb0, _va0, _sum0);    // sum0 = (a00-a07) * k00
-                    _sum0n = _mm_fmadd_ps(_vb0n, _va0, _sum0n);
-                    _sum1 = _mm_fmadd_ps(_vb0, _va1, _sum1);    // sum1 = (a00-a07) * k10
-                    _sum1n = _mm_fmadd_ps(_vb0n, _va1, _sum1n);
-                    _sum2 = _mm_fmadd_ps(_vb0, _va2, _sum2);    // sum2 = (a00-a07) * k20
-                    _sum2n = _mm_fmadd_ps(_vb0n, _va2, _sum2n);
-                    _sum3 = _mm_fmadd_ps(_vb0, _va3, _sum3);    // sum3 = (a00-a07) * k30
-                    _sum3n = _mm_fmadd_ps(_vb0n, _va3, _sum3n);
+                    __m256 _va0 = _mm256_broadcast_ss(va);
+                    __m256 _va1 = _mm256_broadcast_ss(va+1);
+                    __m256 _va2 = _mm256_broadcast_ss(va+2);
+                    __m256 _va3 = _mm256_broadcast_ss(va+3);
+                    __m256 _vb0 = _mm256_loadu_ps(vb);
+                    _sum0 = _mm256_fmadd_ps(_vb0, _va0, _sum0);    // sum0 = (a00-a07) * k00
+                    _sum1 = _mm256_fmadd_ps(_vb0, _va1, _sum1);    // sum1 = (a00-a07) * k10
+                    _sum2 = _mm256_fmadd_ps(_vb0, _va2, _sum2);    // sum2 = (a00-a07) * k20
+                    _sum3 = _mm256_fmadd_ps(_vb0, _va3, _sum3);    // sum3 = (a00-a07) * k30
 
                     va += 4;
-                    vb += 8;
+                    vb += 4;
                 }
 
-                _mm_storeu_ps(output0, _sum0);
-                _mm_storeu_ps(output0+4, _sum0n); 
-                _mm_storeu_ps(output1, _sum1); 
-                _mm_storeu_ps(output1+4, _sum1n); 
-                _mm_storeu_ps(output2, _sum2); 
-                _mm_storeu_ps(output2+4, _sum2n); 
-                _mm_storeu_ps(output3, _sum3); 
-                _mm_storeu_ps(output3+4, _sum3n);
+                _mm256_storeu_ps(output0, _sum0);
+                _mm256_storeu_ps(output1, _sum1); 
+                _mm256_storeu_ps(output2, _sum2);
+                _mm256_storeu_ps(output3, _sum3);   
 #else
                 float sum0[8] = {0};
                 float sum1[8] = {0};
@@ -850,81 +819,54 @@ static void conv_im2col_sgemm_sse(const Mat &bottom_blob, Mat &top_blob, const M
             {                
                 const float* vb = bottom_tm.channel(j/8 + j%8);
                 const float* va = kernel_tm.channel(i/8 + (i%8)/4);
-#if 0 //__AVX__
-                asm volatile(
-                    "ld1    {v14.4s}, [%13]              \n" // sum0_3 inital with bias
+#if __AVX__
+                __m128 _sum0_3 = _mm_loadu_ps(biasptr);
+                __m128 _sum0 = _mm_set1_ps(0.0);
+                __m128 _sum1 = _mm_set1_ps(0.0);
+                __m128 _sum2 = _mm_set1_ps(0.0);
+                __m128 _sum3 = _mm_set1_ps(0.0);
 
-                    "lsr         w4, %w12, #2            \n"// r4 = nn = L >> 2
-                    "cmp         w4, #0                  \n"
-                    "beq         1f                      \n"
+                int k=0;
+                for (; k+3<L; k=k+4)
+                {
+                    __m128 _vb0 = _mm_set1_ps(vb[0]);
+                    __m128 _vb1 = _mm_set1_ps(vb[1]);
+                    __m128 _vb2 = _mm_set1_ps(vb[2]);
+                    __m128 _vb3 = _mm_set1_ps(vb[3]);
+                    __m128 _va0 = _mm_loadu_ps(va);
+                    __m128 _va1 = _mm_loadu_ps(va+4);
+                    __m128 _va2 = _mm_loadu_ps(va+8);
+                    __m128 _va3 = _mm_loadu_ps(va+12);
 
-                    "eor    v16.16b, v16.16b, v16.16b    \n" // sum0
-                    "eor    v17.16b, v17.16b, v17.16b    \n" // sum1
-                    "eor    v18.16b, v18.16b, v18.16b    \n" // sum2
-                    "eor    v19.16b, v19.16b, v19.16b    \n" // sum3                    
+                    _sum0 = _mm_fmadd_ps(_va0, _vb0, _sum0);// sum0 += (k00-k30) * a00
+                    _sum1 = _mm_fmadd_ps(_va1, _vb1, _sum1);// sum1 += (k01-k31) * a10
+                    _sum2 = _mm_fmadd_ps(_va2, _vb2, _sum2);// sum2 += (k02-k32) * a20
+                    _sum3 = _mm_fmadd_ps(_va3, _vb3, _sum3);// sum3 += (k03-k33) * a30
 
-                    "0:                                  \n"// for (; k+3<L; k=k+4)
+                    va += 16;
+                    vb += 4;
+                }
 
-                    "prfm   pldl1keep, [%5, #256]                       \n"
-                    "ld1    {v0.4s, v1.4s, v2.4s, v3.4s}, [%5], #64     \n" // k
+                _sum0 = _mm_add_ps(_sum0, _sum1);
+                _sum2 = _mm_add_ps(_sum2, _sum3);
+                _sum0_3 = _mm_add_ps(_sum0_3, _sum0);
+                _sum0_3 = _mm_add_ps(_sum0_3, _sum2);
 
-                    "prfm   pldl1keep, [%4, #128]        \n"
-                    "ld1    {v8.4s}, [%4], #16           \n" // d
+                for (; k<L; k++)
+                {
+                    __m128 _vb0 = _mm_set1_ps(vb[0]);
+                    __m128 _va = _mm_loadu_ps(va); 
 
-                    "subs   w4, w4, #1                   \n"
-                    "fmla    v16.4s, v0.4s, v8.s[0]      \n"// sum0 += (k00-k30) * a00
-                    "fmla    v17.4s, v1.4s, v8.s[1]      \n"// sum1 += (k01-k31) * a10
-                    "fmla    v18.4s, v2.4s, v8.s[2]      \n"// sum2 += (k02-k32) * a20
-                    "fmla    v19.4s, v3.4s, v8.s[3]      \n"// sum3 += (k03-k33) * a30
+                    _sum0_3 = _mm_fmadd_ps(_va, _vb0, _sum0_3);// sum0 += (k00-k30) * a00
 
-                    "bne    0b                           \n"
+                    va += 4;
+                    vb += 1;
+                }         
 
-                    "add      v16.4s, v16.4s, v18.4s     \n"
-                    "add      v17.4s, v17.4s, v19.4s     \n"
-                    "add      v14.4s, v16.4s, v17.4s     \n"
-
-                    "1:                                  \n"
-
-                    // remain loop
-                    "and    w4, %w12, #3                 \n"// w4 = remain = inch & 3;
-                    "cmp    w4, #0                       \n"
-                    "beq    3f                           \n"
-
-                    "2:                                  \n"
-
-                    "prfm   pldl1keep, [%5, #128]        \n"
-                    "ld1    {v0.4s}, [%5], #16           \n"
-                    "prfm   pldl1keep, [%4, #32]         \n"
-                    "ld1r   {v8.4s}, [%4], #4            \n"
-
-                    "subs   w4, w4, #1                   \n"
-                    // k0
-                    "fmla   v14.4s, v8.4s, v0.4s         \n"// sum0 += (k00-k30) * a00
-                    "bne    2b                           \n"
-
-                    "3:                                  \n"
-
-                    "st1    {v14.s}[0], [%0]             \n"
-                    "st1    {v14.s}[1], [%1]             \n"
-                    "st1    {v14.s}[2], [%2]             \n"
-                    "st1    {v14.s}[3], [%3]             \n"
-                    
-                    : "=r"(output0), // %0
-                      "=r"(output1), // %1
-                      "=r"(output2), // %2
-                      "=r"(output3), // %3
-                      "=r"(vb),      // %4
-                      "=r"(va)       // %5
-                    : "0"(output0),
-                      "1"(output1),
-                      "2"(output2),
-                      "3"(output3),
-                      "4"(vb),
-                      "5"(va),
-                      "r"(L),        // %12 
-                      "r"(biasptr)   // %13
-                    : "cc", "memory", "x4", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19"
-                );
+                output0[0] = _sum0_3[0];
+                output1[0] = _sum0_3[1];
+                output2[0] = _sum0_3[2];
+                output3[0] = _sum0_3[3];  
 #else
                 float sum0 = biasptr[0];
                 float sum1 = biasptr[1];
@@ -958,7 +900,7 @@ static void conv_im2col_sgemm_sse(const Mat &bottom_blob, Mat &top_blob, const M
 
         #pragma omp parallel for num_threads(opt.num_threads)
         for (int i=remain_outch_start; i<outch; i++)
-        {
+        { 
             float* output = top_blob.channel(i);
 
             const float bias0 = bias ? bias[i] : 0.f;
@@ -968,73 +910,44 @@ static void conv_im2col_sgemm_sse(const Mat &bottom_blob, Mat &top_blob, const M
             {
                 const float* vb = bottom_tm.channel(j/8);
                 const float* va = kernel_tm.channel(i/8 + (i%8)/4 + i%4);
-#if 0 //__AVX__
-                asm volatile(
-                    "dup    v16.4s, %w7                  \n" // sum0
-                    "dup    v17.4s, %w7                  \n" // sum0n
+#if __AVX__
+                __m256 _sum0 = _mm256_broadcast_ss(&bias0);
 
-                    "lsr         w4, %w6, #2             \n"// r4 = nn = L >> 2
-                    "cmp         w4, #0                  \n"
-                    "beq         1f                      \n"
-
-                    "0:                                  \n"// for (; k+3<L; k=k+4)
-
-                    "prfm   pldl1keep, [%2, #128]        \n"
-                    "ld1    {v0.4s}, [%2], #16           \n"
-
-                    "prfm   pldl1keep, [%1, #128]                       \n"
-                    "ld1    {v8.4s, v9.4s, v10.4s, v11.4s}, [%1], #64   \n" // data
-                    "ld1    {v12.4s, v13.4s, v14.4s, v15.4s}, [%1], #64 \n"
-
+                int k=0;
+                for (; k+3<L; k=k+4)
+                {
                     // k0
-                    "fmla    v16.4s, v8.4s, v0.s[0]      \n"// sum0 += (a00-a70) * k00
-                    "fmla    v17.4s, v9.4s, v0.s[0]      \n"//
-                    // k1
-                    "fmla    v16.4s, v10.4s, v1.s[0]     \n"// sum0 += (a01-a71) * k01
-                    "fmla    v17.4s, v11.4s, v1.s[0]     \n"//
-                    // k2
-                    "fmla    v16.4s, v12.4s, v2.s[0]     \n"// sum0 += (a02-a72) * k02
-                    "fmla    v17.4s, v13.4s, v2.s[0]     \n"//
-                    // k3
-                    "fmla    v16.4s, v14.4s, v3.s[0]     \n"// sum0 += (a03-a73) * k03
-                    "fmla    v17.4s, v15.4s, v3.s[0]     \n"//
+                    __m256 _va0 = _mm256_broadcast_ss(va);
+                    __m256 _va1 = _mm256_broadcast_ss(va+1);
+                    __m256 _va2 = _mm256_broadcast_ss(va+2);
+                    __m256 _va3 = _mm256_broadcast_ss(va+3);
+                    __m256 _vb0 = _mm256_loadu_ps(vb);
+                    __m256 _vb1 = _mm256_loadu_ps(vb+8);
+                    __m256 _vb2 = _mm256_loadu_ps(vb+16);
+                    __m256 _vb3 = _mm256_loadu_ps(vb+24);
 
-                    "subs   w4, w4, #1                   \n"
-                    "bne    0b                           \n"
+                    _sum0 = _mm256_fmadd_ps(_vb0, _va0, _sum0);    // sum0 = (a00-a07) * k00                
+                    _sum0 = _mm256_fmadd_ps(_vb1, _va1, _sum0);    // sum0 += (a10-a17) * k01
+                    _sum0 = _mm256_fmadd_ps(_vb2, _va2, _sum0);    // sum0 += (a20-a27) * k02
+                    _sum0 = _mm256_fmadd_ps(_vb3, _va3, _sum0);    // sum0 += (a30-a37) * k03
+                
+                    va += 4;
+                    vb += 32;
+                }
 
-                    "1:                                  \n"
-
-                    // remain loop
-                    "and    w4, %w6, #3                  \n"// w4 = remain = inch & 3;
-                    "cmp    w4, #0                       \n"
-                    "beq    3f                           \n"
-
-                    "2:                                  \n"
-                    "prfm   pldl1keep, [%2, #32]         \n"
-                    "ld1r   {v0.4s}, [%2], #4            \n"
-                    "prfm   pldl1keep, [%1, #256]        \n"
-                    "ld1    {v8.4s, v9.4s}, [%1], #32    \n"
-
-                    "subs   w4, w4, #1                   \n"
+                for (; k<L; k++)
+                {
                     // k0
-                    "fmla    v16.4s, v0.4s, v8.4s        \n"// sum0 += (a00-a70) * k00
-                    "fmla    v17.4s, v0.4s, v9.4s        \n"//
+                    __m256 _va0 = _mm256_broadcast_ss(va);
+                    __m256 _vb0 = _mm256_loadu_ps(vb);
 
-                    "bne    2b                           \n"
+                    _sum0 = _mm256_fmadd_ps(_vb0, _va0, _sum0);    // sum0 = (a00-a07) * k00
 
-                    "3:                                  \n"
-                    "st1    {v16.4s, v17.4s}, [%0]       \n"
-                    
-                    : "=r"(output),  // %0
-                      "=r"(vb),      // %1
-                      "=r"(va)       // %2
-                    : "0"(output),
-                      "1"(vb),
-                      "2"(va),
-                      "r"(L),        // %6 
-                      "r"(bias0)     // %7
-                    : "cc", "memory", "x4", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17"
-                );
+                    va += 1;
+                    vb += 4;
+                }
+
+                _mm256_storeu_ps(output, _sum0); 
 #else                
                 float sum[8] = {0};
 
@@ -1082,21 +995,20 @@ static void conv_im2col_sgemm_sse(const Mat &bottom_blob, Mat &top_blob, const M
                 const float* va = kernel_tm.channel(i/8 + (i%8)/4 + i%4);
 
                 int k=0;
-#if 0 //__AVX__
-                float32x4_t _sum0 = vdupq_n_f32(0.f);
+#if __AVX__
+                __m128 _sum0 = _mm_set1_ps(0.f);
 
                 for (; k+3<L; k+=4)
                 {
-                    float32x4_t _p0 = vld1q_f32(vb);
+                    __m128 _p0 = _mm_loadu_ps(vb);
                     vb += 4;
 
-                    float32x4_t _k0 = vld1q_f32(va);
+                    __m128 _k0 = _mm_loadu_ps(va);
                     va += 4;
 
-                    _sum0 = vfmaq_f32(_sum0, _p0, _k0);
-
+                    _sum0 = _mm_fmadd_ps(_p0, _k0, _sum0);
                 }
-                float sum0 = bias0 + vaddvq_f32(_sum0);
+                float sum0 = bias0 + _sum0[0] + _sum0[1] + _sum0[2] + _sum0[3];
 #else
                 float sum0 = bias0;
 #endif // __AVX__

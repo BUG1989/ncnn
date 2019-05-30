@@ -100,6 +100,7 @@ int Convolution_x86::create_pipeline(const Option& opt)
             conv3x3s1_winograd43_transform_kernel_sse(weight_data, weight_3x3_winograd23_data, num_input, num_output);
     }
 
+    if (use_int8_inference == false)
     {
         int kernel_size = kernel_w * kernel_h;
         int num_input = weight_data_size / kernel_size / num_output;
