@@ -25,6 +25,8 @@ Convolution::Convolution()
     one_blob_only = true;
     support_inplace = false;
     use_int8_requantize = false;
+    bottom_blob_int8_scale = 0;
+    top_blob_int8_scale = 0;
 
     quantize = 0;
 }

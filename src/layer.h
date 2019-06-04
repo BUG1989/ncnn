@@ -23,6 +23,7 @@
 #include "modelbin.h"
 #include "paramdict.h"
 #include "platform.h"
+#include "help.h"
 
 #if NCNN_VULKAN
 #include <vulkan/vulkan.h>

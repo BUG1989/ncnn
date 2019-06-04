@@ -28,6 +28,7 @@ set(ncnn_SRCS
     paramdict.cpp
     pipeline.cpp
     benchmark.cpp
+    help.cpp
 )
 
 macro(ncnn_add_layer class)
@@ -300,6 +301,7 @@ if(NCNN_INSTALL_SDK)
     paramdict.h
     pipeline.h
     benchmark.h
+    help.h
     ${CMAKE_CURRENT_BINARY_DIR}/layer_type_enum.h
     ${CMAKE_CURRENT_BINARY_DIR}/platform.h
     DESTINATION include

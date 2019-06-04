@@ -91,6 +91,8 @@ public:
         }
 #endif // NCNN_VULKAN
 
+        fuse_network();
+
         return ret;
     }
 };
@@ -268,18 +270,18 @@ int main(int argc, char** argv)
 #endif // NCNN_VULKAN
     benchmark("mobilenet_int8", ncnn::Mat(224, 224, 3));
 
-    benchmark("mobilenet_v2", ncnn::Mat(224, 224, 3));
+    // benchmark("mobilenet_v2", ncnn::Mat(224, 224, 3));
 
 // #if NCNN_VULKAN
 //     if (!g_use_vulkan_compute)
 // #endif // NCNN_VULKAN
 //     benchmark("mobilenet_v2_int8", ncnn::Mat(224, 224, 3));
 
-    benchmark("shufflenet", ncnn::Mat(224, 224, 3));
+    // benchmark("shufflenet", ncnn::Mat(224, 224, 3));
 
-    benchmark("mnasnet", ncnn::Mat(224, 224, 3));
+    // benchmark("mnasnet", ncnn::Mat(224, 224, 3));
 
-    benchmark("proxylessnasnet", ncnn::Mat(224, 224, 3));
+    // benchmark("proxylessnasnet", ncnn::Mat(224, 224, 3));
 
     benchmark("googlenet", ncnn::Mat(224, 224, 3));
 
@@ -295,14 +297,14 @@ int main(int argc, char** argv)
 #endif // NCNN_VULKAN
     benchmark("resnet18_int8", ncnn::Mat(224, 224, 3));
 
-    benchmark("alexnet", ncnn::Mat(227, 227, 3));
+    // benchmark("alexnet", ncnn::Mat(227, 227, 3));
 
-    benchmark("vgg16", ncnn::Mat(224, 224, 3));
+    // benchmark("vgg16", ncnn::Mat(224, 224, 3));
 
 #if NCNN_VULKAN
     if (!g_use_vulkan_compute)
 #endif // NCNN_VULKAN
-    benchmark("vgg16_int8", ncnn::Mat(224, 224, 3));
+    // benchmark("vgg16_int8", ncnn::Mat(224, 224, 3));
 
     benchmark("resnet50", ncnn::Mat(224, 224, 3));
 
@@ -311,12 +313,12 @@ int main(int argc, char** argv)
 #endif // NCNN_VULKAN
     benchmark("resnet50_int8", ncnn::Mat(224, 224, 3));
 
-    benchmark("squeezenet_ssd", ncnn::Mat(300, 300, 3));
+    // benchmark("squeezenet_ssd", ncnn::Mat(300, 300, 3));
 
 #if NCNN_VULKAN
     if (!g_use_vulkan_compute)
 #endif // NCNN_VULKAN
-    benchmark("squeezenet_ssd_int8", ncnn::Mat(300, 300, 3));
+    // benchmark("squeezenet_ssd_int8", ncnn::Mat(300, 300, 3));
 
     benchmark("mobilenet_ssd", ncnn::Mat(300, 300, 3));
 
@@ -325,9 +327,9 @@ int main(int argc, char** argv)
 #endif // NCNN_VULKAN
     benchmark("mobilenet_ssd_int8", ncnn::Mat(300, 300, 3));
 
-    benchmark("mobilenet_yolo", ncnn::Mat(416, 416, 3));
+    // benchmark("mobilenet_yolo", ncnn::Mat(416, 416, 3));
 
-    benchmark("mobilenet_yolov3", ncnn::Mat(416, 416, 3));
+    // benchmark("mobilenet_yolov3", ncnn::Mat(416, 416, 3));
 
 #if NCNN_VULKAN
     delete g_blob_vkallocator;

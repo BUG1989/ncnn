@@ -1205,28 +1205,28 @@ static void convdw3x3s1_int8_requant_neon(const Mat &bottom_blob, Mat &top_blob,
             for (; remain>0; remain--)
             {
                 // TODO NEON
-                int sum0 = 0;
-                int sum0n = 0;
+                short sum0 = 0;
+                short sum0n = 0;
 
-                sum0 += (int)r0[0] * kernel[0];
-                sum0 += (int)r0[1] * kernel[1];
-                sum0 += (int)r0[2] * kernel[2];
-                sum0 += (int)r1[0] * kernel[3];
-                sum0 += (int)r1[1] * kernel[4];
-                sum0 += (int)r1[2] * kernel[5];
-                sum0 += (int)r2[0] * kernel[6];
-                sum0 += (int)r2[1] * kernel[7];
-                sum0 += (int)r2[2] * kernel[8];
+                sum0 += (short)r0[0] * kernel[0];
+                sum0 += (short)r0[1] * kernel[1];
+                sum0 += (short)r0[2] * kernel[2];
+                sum0 += (short)r1[0] * kernel[3];
+                sum0 += (short)r1[1] * kernel[4];
+                sum0 += (short)r1[2] * kernel[5];
+                sum0 += (short)r2[0] * kernel[6];
+                sum0 += (short)r2[1] * kernel[7];
+                sum0 += (short)r2[2] * kernel[8];
 
-                sum0n += (int)r1[0] * kernel[0];
-                sum0n += (int)r1[1] * kernel[1];
-                sum0n += (int)r1[2] * kernel[2];
-                sum0n += (int)r2[0] * kernel[3];
-                sum0n += (int)r2[1] * kernel[4];
-                sum0n += (int)r2[2] * kernel[5];
-                sum0n += (int)r3[0] * kernel[6];
-                sum0n += (int)r3[1] * kernel[7];
-                sum0n += (int)r3[2] * kernel[8];
+                sum0n += (short)r1[0] * kernel[0];
+                sum0n += (short)r1[1] * kernel[1];
+                sum0n += (short)r1[2] * kernel[2];
+                sum0n += (short)r2[0] * kernel[3];
+                sum0n += (short)r2[1] * kernel[4];
+                sum0n += (short)r2[2] * kernel[5];
+                sum0n += (short)r3[0] * kernel[6];
+                sum0n += (short)r3[1] * kernel[7];
+                sum0n += (short)r3[2] * kernel[8];
 
                 *outptr0 = float2int8(((float)sum0 * scale_requant_in + bias0) * scale_requant_out);
                 *outptr0n = float2int8(((float)sum0n * scale_requant_in + bias0) * scale_requant_out);
@@ -1490,17 +1490,17 @@ static void convdw3x3s1_int8_requant_neon(const Mat &bottom_blob, Mat &top_blob,
 #endif // __ARM_NEON
             for (; remain>0; remain--)
             {
-                int sum = 0;
+                short sum = 0;
 
-                sum += (int)r0[0] * kernel[0];
-                sum += (int)r0[1] * kernel[1];
-                sum += (int)r0[2] * kernel[2];
-                sum += (int)r1[0] * kernel[3];
-                sum += (int)r1[1] * kernel[4];
-                sum += (int)r1[2] * kernel[5];
-                sum += (int)r2[0] * kernel[6];
-                sum += (int)r2[1] * kernel[7];
-                sum += (int)r2[2] * kernel[8];
+                sum += (short)r0[0] * kernel[0];
+                sum += (short)r0[1] * kernel[1];
+                sum += (short)r0[2] * kernel[2];
+                sum += (short)r1[0] * kernel[3];
+                sum += (short)r1[1] * kernel[4];
+                sum += (short)r1[2] * kernel[5];
+                sum += (short)r2[0] * kernel[6];
+                sum += (short)r2[1] * kernel[7];
+                sum += (short)r2[2] * kernel[8];
 
                 *outptr0 = float2int8(((float)sum * scale_requant_in + bias0) * scale_requant_out);
 
@@ -1790,17 +1790,17 @@ static void convdw3x3s2_int8_requant_neon(const Mat &bottom_blob, Mat &top_blob,
 #endif // __ARM_NEON
             for (; remain>0; remain--)
             {
-                int sum = 0;
+                short sum = 0;
                 
-                sum += (int)r0[0] * kernel[0];
-                sum += (int)r0[1] * kernel[1];
-                sum += (int)r0[2] * kernel[2];
-                sum += (int)r1[0] * kernel[3];
-                sum += (int)r1[1] * kernel[4];
-                sum += (int)r1[2] * kernel[5];
-                sum += (int)r2[0] * kernel[6];
-                sum += (int)r2[1] * kernel[7];
-                sum += (int)r2[2] * kernel[8];
+                sum += (short)r0[0] * kernel[0];
+                sum += (short)r0[1] * kernel[1];
+                sum += (short)r0[2] * kernel[2];
+                sum += (short)r1[0] * kernel[3];
+                sum += (short)r1[1] * kernel[4];
+                sum += (short)r1[2] * kernel[5];
+                sum += (short)r2[0] * kernel[6];
+                sum += (short)r2[1] * kernel[7];
+                sum += (short)r2[2] * kernel[8];
 
                 *outptr = float2int8(((float)sum * scale_requant_in + bias0) * scale_requant_out);
 

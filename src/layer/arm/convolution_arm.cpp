@@ -119,13 +119,14 @@ int Convolution_arm::create_pipeline(const Option& opt)
             int num_input = weight_data_size / 9 / num_output;
             conv3x3s2_transform_kernel_int8_neon(weight_data, weight_3x3s2_int8_data, num_input, num_output);
         }
-        else if (kernel_w == 1 && kernel_h == 1 && dilation_w == 1 && dilation_h == 1 && stride_w == 1 && stride_h == 1)
+
+        if (kernel_w == 1 && kernel_h == 1 && dilation_w == 1 && dilation_h == 1 && stride_w == 1 && stride_h == 1)
         {
             int num_input = weight_data_size / num_output;
             conv1x1s1_sgemm_transform_kernel_int8_neon(weight_data, weight_1x1s1_sgemm_int8_data, num_input, num_output);
             use_sgemm1x1 = true;
         }
-        else
+        
         {
             int kernel_size = kernel_w * kernel_h;
             int num_input = weight_data_size / kernel_size / num_output;
@@ -481,6 +482,9 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
     // int8
     if (use_int8_inference)
     {
+#if DEBUG_FEATURE
+        extract_feature_in_s8(0, this->name.c_str(), bottom_blob_bordered);
+#endif         
         if (use_int8_requantize == true)
         {
             Mat top_blob_tm;
@@ -493,19 +497,17 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
                 return -100; 
 
             if (use_sgemm1x1)
-            {              
-                conv1x1s1_sgemm_int8_requant_neon(bottom_blob_bordered, top_blob, weight_1x1s1_sgemm_int8_data, bias_data, requantize_scales, opt);
-                
+            {
+                conv1x1s1_int8_e2e_neon(bottom_blob_bordered, top_blob_tm, weight_data, opt);
+            }
+            else if (use_winograd3x3 && outw >= 8 && outh >=8)
+            {
+                conv3x3s1_winograd43_requant_int8_neon(bottom_blob_bordered, top_blob, weight_3x3_winograd23_int8_data, bias_data, requantize_scales, opt);                
                 return 0;
-            }
-            else if (use_winograd3x3)
+            }          
+            else if (kernel_w == 3 && kernel_h == 3 && dilation_w == 1 && dilation_h == 1 && stride_w == 2 && stride_h == 2 && outw >= 8 && outh >=8)
             {
-                // conv3x3s1_winograd23_int8_neon(bottom_blob_bordered, top_blob_tm, weight_3x3_winograd23_int8_data, opt);
-                conv3x3s1_winograd43_int8_neon(bottom_blob_bordered, top_blob_tm, weight_3x3_winograd23_int8_data, opt);
-            }
-            else if (kernel_w == 3 && kernel_h == 3 && dilation_w == 1 && dilation_h == 1 && stride_w == 2 && stride_h == 2)
-            {
-                conv3x3s2_packed_int8_neon(bottom_blob_bordered, top_blob_tm, weight_3x3s2_int8_data, opt);
+                conv3x3s2_packed_int8_e2e_neon(bottom_blob_bordered, top_blob_tm, weight_3x3s2_int8_data, opt);
             }
             else
             {
@@ -523,7 +525,11 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
                 Mat top_blob_tm_g = top_blob_tm.channel_range(p, 1);
                 Mat top_blob_g = top_blob.channel_range(p, 1);
                 requantize_ops[p]->forward(top_blob_tm_g, top_blob_g, opt_g);
-            }                     
+            }     
+#if DEBUG_FEATURE
+            extract_feature_blob_s16("D_Out_S16", this->name.c_str(), top_blob_tm);
+            extract_feature_blob_s8("D_Out_S8", this->name.c_str(), top_blob);
+#endif                                      
         }
         else
         {
@@ -532,25 +538,26 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
                 return -100; 
 
             if (use_sgemm1x1)
-            {
-                conv1x1s1_sgemm_int8_neon(bottom_blob_bordered, top_blob, weight_1x1s1_sgemm_int8_data, opt);
+            {           
+                conv1x1s1_int8_e2e_neon(bottom_blob_bordered, top_blob, weight_data, opt);
             }
-            else if (use_winograd3x3)
+            else if (use_winograd3x3 && outw >= 8 && outh >=8)
             {
-                // conv3x3s1_winograd23_int8_neon(bottom_blob_bordered, top_blob, weight_3x3_winograd23_int8_data, opt);
-                // conv3x3s1_winograd43_int8_neon(bottom_blob_bordered, top_blob, weight_3x3_winograd23_int8_data, opt);
-                conv3x3s1_winograd43_dequant_int8_neon(bottom_blob_bordered, top_blob, weight_3x3_winograd23_int8_data, bias_data, dequantize_scales, opt);
+                conv3x3s1_winograd43_dequant_int8_neon(bottom_blob_bordered, top_blob, weight_3x3_winograd23_int8_data, bias_data, dequantize_scales, opt);      
                 return 0;
-            }
-            else if (kernel_w == 3 && kernel_h == 3 && dilation_w == 1 && dilation_h == 1 && stride_w == 2 && stride_h == 2)
-            {
-                conv3x3s2_packed_int8_neon(bottom_blob_bordered, top_blob, weight_3x3s2_int8_data, opt);
+            }                        
+            else if (kernel_w == 3 && kernel_h == 3 && dilation_w == 1 && dilation_h == 1 && stride_w == 2 && stride_h == 2 && outw >= 8 && outh >=8)
+            {      
+                conv3x3s2_packed_int8_e2e_neon(bottom_blob_bordered, top_blob, weight_3x3s2_int8_data, opt);                       
             }
             else
             {
                 conv_int8(bottom_blob_bordered, top_blob, weight_sgemm_int8_data, opt);
             }        
 
+#if DEBUG_FEATURE
+            extract_feature_blob_s16("D_Out_S16", this->name.c_str(), top_blob);
+#endif   
             // dequantize, reverse scale inplace
             #pragma omp parallel for num_threads(opt.num_threads)
             for (int p=0; p<num_output; p++)
@@ -562,6 +569,9 @@ int Convolution_arm::forward(const Mat& bottom_blob, Mat& top_blob, const Option
                 Mat top_blob_g = top_blob.channel_range(p, 1);
                 dequantize_ops[p]->forward_inplace(top_blob_g, opt_g);
             }          
+#if DEBUG_FEATURE
+            extract_feature_out_f32(0, this->name.c_str(), top_blob);
+#endif                   
         } 
 
         return 0;

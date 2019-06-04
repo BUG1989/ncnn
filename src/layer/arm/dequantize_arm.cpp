@@ -92,12 +92,14 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
         int channels = bottom_top_blob.c;
         int size = w * h;
 
+        Mat bottom_top_blob_tm = bottom_top_blob.clone(opt.workspace_allocator);
+
         if (bias_term)
         {
-            #pragma omp parallel for num_threads(opt.num_threads)
+            //#pragma omp parallel for num_threads(opt.num_threads)
             for (int q=0; q<channels; q++)
             {
-                int* intptr = bottom_top_blob.channel(q);
+                short* intptr = bottom_top_blob_tm.channel(q);
                 float* ptr = bottom_top_blob.channel(q);
 
                 float bias = bias_data[q];
@@ -118,10 +120,13 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
                     "dup    v3.4s, %w7                   \n" // bias
                     "0:                                  \n"
                     "prfm   pldl1keep, [%1, #128]        \n"
-                    "ld1    {v0.4s, v1.4s}, [%1], #32    \n" // data
+                    "ld1    {v0.8h}, [%1], #16           \n" // data
+                    // top_blob s16 -> s32
+                    "sshll    v7.4s, v0.4h, #0           \n"
+                    "sshll2   v8.4s, v0.8h, #0           \n"
                     // top_s32 -> top_f32
-                    "scvtf  v5.4s, v0.4s                 \n"
-                    "scvtf  v6.4s, v1.4s                 \n"
+                    "scvtf  v5.4s, v7.4s                 \n"
+                    "scvtf  v6.4s, v8.4s                 \n"
                     // top_f32 = top_f32 * scale_out
                     "fmul   v5.4s, v5.4s, v2.4s          \n"
                     "fmul   v6.4s, v6.4s, v2.4s          \n"
@@ -140,17 +145,49 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
                       "2"(ptr),
                       "r"(scale),       // %6
                       "r"(bias)         // %7
-                    : "cc", "memory", "v0", "v1", "v2", "v3", "v4", "v5", "v6"
+                    : "cc", "memory", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"
                 );
+                }
+
+                if (remain >= 4)
+                {
+                    remain -= 4;
+
+                asm volatile(
+                    "dup    v2.4s, %w6                   \n" // scale
+                    "dup    v3.4s, %w7                   \n" // bias
+                    "ld1    {v0.4h}, [%1], #8            \n" // data
+                    // top_blob s16 -> s32
+                    "sshll    v7.4s, v0.4h, #0           \n"
+                    // top_s32 -> top_f32
+                    "scvtf  v5.4s, v7.4s                 \n"
+                    // top_f32 = top_f32 * scale_out
+                    "fmul   v5.4s, v5.4s, v2.4s          \n"
+                    // top_f32 = top_f32 + bias_tm
+                    "fadd   v5.4s, v5.4s, v3.4s          \n"
+                    // save top_f32
+                    "st1    {v5.4s}, [%2], #16           \n"
+                    : "=r"(nn),         // %0
+                      "=r"(intptr),     // %1
+                      "=r"(ptr)         // %2
+                    : "0"(nn),
+                      "1"(intptr),
+                      "2"(ptr),
+                      "r"(scale),       // %6
+                      "r"(bias)         // %7
+                    : "cc", "memory", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"
+                );                    
                 }
 #else
                 if (nn > 0)
                 {
                 asm volatile(
                     "pld        [%1, #256]          \n"
-                    "vld1.s32   {d0-d3}, [%1]!      \n" //q0-q1 data
+                    "vld1.s16   {d0-d1}, [%1]!      \n" //q0-q1 data
                     "vdup.f32   q10, %6             \n" //q10 scale
                     "vdup.f32   q12, %7             \n" //q12 bias
+                    "vmovl.s16  q1, d1              \n"
+                    "vmovl.s16  q0, d0              \n"
 
                     "0:                             \n"
                     "vcvt.f32.s32 q0, q0            \n"
@@ -163,13 +200,15 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
                     "vadd.f32   q3,q1,q12           \n"
 
                     "pld        [%1, #256]          \n"
-                    "vld1.s32   {d0-d3}, [%1]!      \n"
+                    "vld1.s16   {d0-d1}, [%1]!      \n"
+                    "vmovl.s16  q1, d1              \n"
+                    "vmovl.s16  q0, d0              \n"
                     "vst1.f32   {d4-d7}, [%2]!      \n"
 
                     "subs       %0, #1              \n"
                     "bne        0b                  \n"
 
-                    "sub        %1, #32             \n"
+                    "sub        %1, #16             \n"
                     : "=r"(nn),         // %0
                       "=r"(intptr),     // %1
                       "=r"(ptr)         // %2
@@ -181,11 +220,37 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
                     : "cc", "memory", "q0", "q1", "q2", "q3", "q10", "q12"
                 );
                 }
+
+                if (remain >= 4)
+                {
+                    remain -= 4;
+
+                asm volatile(
+                    "vld1.s16   {d0}, [%1]!         \n" //q0-q1 data
+                    "vdup.f32   q10, %6             \n" //q10 scale
+                    "vdup.f32   q12, %7             \n" //q12 bias
+                    "vmovl.s16  q0, d0              \n"
+                    "vcvt.f32.s32 q0, q0            \n"
+                    "vmul.f32   q0,q0,q10           \n"
+                    "vadd.f32   q2,q0,q12           \n"
+                    "vst1.f32   {d4-d5}, [%2]!      \n"
+
+                    : "=r"(nn),         // %0
+                      "=r"(intptr),     // %1
+                      "=r"(ptr)         // %2
+                    : "0"(nn),
+                      "1"(intptr),
+                      "2"(ptr),
+                      "r"(scale),       // %6
+                      "r"(bias)         // %7
+                    : "cc", "memory", "q0", "q1", "q2", "q3", "q10", "q12"
+                );
+                }                
 #endif // __aarch64__
 #endif // __ARM_NEON
                 for (; remain>0; remain--)
                 {
-                    *ptr = *intptr * scale + bias;
+                    *ptr = (float)(*intptr) * scale + bias;
 
                     intptr++;
                     ptr++;
@@ -194,10 +259,10 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
         }
         else
         {
-            #pragma omp parallel for num_threads(opt.num_threads)
+            // #pragma omp parallel for num_threads(opt.num_threads)
             for (int q=0; q<channels; q++)
             {
-                int* intptr = bottom_top_blob.channel(q);
+                short* intptr = bottom_top_blob_tm.channel(q);
                 float* ptr = bottom_top_blob.channel(q);
 
 #if __ARM_NEON
@@ -214,12 +279,15 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
                 asm volatile(
                     "dup    v2.4s, %w6                   \n" // scale
                     "0:                                  \n"
-                    "prfm   pldl1keep, [%1, #128]      \n"
-                    "ld1    {v0.4s, v1.4s}, [%1], #32    \n" // data
+                    "prfm   pldl1keep, [%1, #128]        \n"
+                    "ld1    {v0.8h}, [%1], #16           \n" // data
+                    // top_blob s16 -> s32
+                    "sshll    v7.4s, v0.4h, #0           \n"
+                    "sshll2   v8.4s, v0.8h, #0           \n"
                     // top_s32 -> top_f32
-                    "scvtf  v5.4s, v0.4s                 \n"
-                    "scvtf  v6.4s, v1.4s                 \n"
-                    // top_f32 = top_f32 * scale_out
+                    "scvtf  v5.4s, v7.4s                 \n"
+                    "scvtf  v6.4s, v8.4s                 \n"
+                    // top_f32 = top_f32 * scale
                     "fmul   v5.4s, v5.4s, v2.4s          \n"
                     "fmul   v6.4s, v6.4s, v2.4s          \n"
                     // save top_f32
@@ -236,13 +304,41 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
                     : "cc", "memory", "v0", "v1", "v2", "v3", "v4", "v5", "v6"
                 );
                 }
+
+                if (remain >= 4)
+                {
+                    remain -= 4;
+
+                asm volatile(
+                    "dup    v2.4s, %w6                   \n" // scale
+                    "ld1    {v0.4h}, [%1], #8            \n" // data
+                    // top_blob s16 -> s32
+                    "sshll  v7.4s, v0.4h, #0             \n"
+                    // top_s32 -> top_f32
+                    "scvtf  v5.4s, v7.4s                 \n"
+                    // top_f32 = top_f32 * scale
+                    "fmul   v5.4s, v5.4s, v2.4s          \n"
+                    // save top_f32
+                    "st1    {v5.4s}, [%2], #16           \n"
+                    : "=r"(nn),         // %0
+                      "=r"(intptr),     // %1
+                      "=r"(ptr)         // %2
+                    : "0"(nn),
+                      "1"(intptr),
+                      "2"(ptr),
+                      "r"(scale)        // %6
+                    : "cc", "memory", "v0", "v1", "v2", "v3", "v4", "v5", "v6"
+                );                    
+                }
 #else
                 if (nn > 0)
                 {
                 asm volatile(
                     "pld        [%1, #256]          \n"
-                    "vld1.s32   {d0-d3}, [%1]!      \n" //q0-q1 data
+                    "vld1.s16   {d0-d1}, [%1]!      \n" //q0-q1 data
                     "vdup.f32   q10, %6             \n" //q10 scale
+                    "vmovl.s16  q1, d1              \n"
+                    "vmovl.s16  q0, d0              \n"
 
                     "0:                             \n"
                     "vcvt.f32.s32 q0, q0            \n"
@@ -252,13 +348,15 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
                     "vmul.f32   q3,q1,q10           \n"
 
                     "pld        [%1, #256]          \n"
-                    "vld1.s32   {d0-d3}, [%1]!      \n"
+                    "vld1.s16   {d0-d1}, [%1]!      \n"
+                    "vmovl.s16  q1, d1              \n"
+                    "vmovl.s16  q0, d0              \n"
                     "vst1.f32   {d4-d7}, [%2]!      \n"
 
                     "subs       %0, #1              \n"
                     "bne        0b                  \n"
 
-                    "sub        %1, #32             \n"
+                    "sub        %1, #16             \n"
                     : "=r"(nn),         // %0
                       "=r"(intptr),     // %1
                       "=r"(ptr)         // %2
@@ -269,11 +367,33 @@ int Dequantize_arm::forward_inplace(Mat& bottom_top_blob, const Option& opt) con
                     : "cc", "memory", "q0", "q1", "q2", "q3", "q10", "q12"
                 );              
                 }
+
+                if (remain >= 4)
+                {
+                    remain -= 4;
+
+                asm volatile(
+                    "vld1.s16   {d0}, [%1]!         \n" //q0-q1 data
+                    "vdup.f32   q10, %6             \n" //q10 scale
+                    "vmovl.s16  q0, d0              \n"
+                    "vcvt.f32.s32 q0, q0            \n"
+                    "vmul.f32   q2,q0,q10           \n"
+                    "vst1.f32   {d4-d5}, [%2]!      \n"
+                    : "=r"(nn),         // %0
+                      "=r"(intptr),     // %1
+                      "=r"(ptr)         // %2
+                    : "0"(nn),
+                      "1"(intptr),
+                      "2"(ptr),
+                      "r"(scale)        // %6
+                    : "cc", "memory", "q0", "q1", "q2", "q3", "q10", "q12"
+                );
+                }                
 #endif // __aarch64__
 #endif // __ARM_NEON
                 for (; remain>0; remain--)
                 {
-                    *ptr = *intptr * scale;
+                    *ptr = (float)(*intptr) * scale;
 
                     intptr++;
                     ptr++;
