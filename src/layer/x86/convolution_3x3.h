@@ -918,6 +918,56 @@ static void conv3x3s1_winograd43_transform_kernel_sse(const Mat& kernel, std::ve
     }    
 }
 
+static void conv3x3s1_winograd43_transform_kernel_normal_sse(const Mat& kernel, Mat& kernel_tm, int inch, int outch)
+{
+    kernel_tm.create(6*6, inch, outch);
+
+    // G
+    const float ktm[6][3] = {
+        {  1.0f/4,     0.0f,    0.0f},
+        { -1.0f/6,  -1.0f/6, -1.0f/6},
+        { -1.0f/6,   1.0f/6, -1.0f/6},
+        { 1.0f/24,  1.0f/12,  1.0f/6},
+        { 1.0f/24, -1.0f/12,  1.0f/6},
+        {    0.0f,     0.0f,    1.0f}
+    };
+
+    #pragma omp parallel for
+    for (int p = 0; p<outch; p++)
+    {
+        for (int q = 0; q<inch; q++)
+        {
+            const float* kernel0 = (const float*)kernel + p*inch * 9 + q * 9;
+            float* kernel_tm0 = kernel_tm.channel(p).row(q);
+
+            // transform kernel
+            const float* k0 = kernel0;
+            const float* k1 = kernel0 + 3;
+            const float* k2 = kernel0 + 6;
+
+            // h
+            float tmp[6][3];
+            for (int i=0; i<6; i++)
+            {
+                tmp[i][0] = k0[0] * ktm[i][0] + k0[1] * ktm[i][1] + k0[2] * ktm[i][2];
+                tmp[i][1] = k1[0] * ktm[i][0] + k1[1] * ktm[i][1] + k1[2] * ktm[i][2];
+                tmp[i][2] = k2[0] * ktm[i][0] + k2[1] * ktm[i][1] + k2[2] * ktm[i][2];
+            }
+
+            // U
+            for (int j=0; j<6; j++)
+            {
+                float* tmpp = &tmp[j][0];
+
+                for (int i=0; i<6; i++)
+                {
+                    kernel_tm0[j*6 + i] = tmpp[0] * ktm[i][0] + tmpp[1] * ktm[i][1] + tmpp[2] * ktm[i][2];
+                }
+            }
+        }
+    } 
+}
+
 static void conv3x3s1_winograd43_sse(const Mat& bottom_blob, Mat& top_blob, const std::vector<Mat> &kernel_tm_test, const Mat& _bias, const Option& opt)
 {
     int w = bottom_blob.w;

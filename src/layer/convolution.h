@@ -58,6 +58,7 @@ public:
 
     // model
     Mat weight_data;
+    Mat weight_int8_data;
     Mat bias_data;
 
     Mat weight_data_int8_scales;
@@ -71,9 +72,15 @@ public:
     std::vector<ncnn::Layer*> dequantize_ops;
     std::vector<ncnn::Layer*> requantize_ops;
 
+    std::vector<ncnn::Layer*> dequantize_wino_ops;
+    std::vector<ncnn::Layer*> requantize_wino_ops;    
+
     // merge de/requantize op into convolution op
     std::vector<float> dequantize_scales;
-    std::vector<float> requantize_scales;    
+    std::vector<float> requantize_scales;
+
+    std::vector<float> dequantize_wino_scales;
+    std::vector<float> requantize_wino_scales;    
 };
 
 } // namespace ncnn

@@ -90,6 +90,11 @@ int Convolution::create_pipeline(const Option& opt)
         return -1;
     }
 
+    if (weight_data_is_int8 && use_int8_inference)
+    {
+        weight_int8_data = weight_data;
+    }    
+
     // runtime quantize the weight data
     if (weight_data_is_float32 && use_int8_inference)
     {
@@ -121,7 +126,7 @@ int Convolution::create_pipeline(const Option& opt)
             delete op;
         }
 
-        weight_data = int8_weight_data;
+        weight_int8_data = int8_weight_data;
     }
 
     // initial the quantize,dequantize op layer
