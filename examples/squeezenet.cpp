@@ -11,21 +11,55 @@
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
-
 #include <stdio.h>
+#include <string.h>
+#include <vector>
+#include <iostream>
+#include <fstream>
+#include <dirent.h>
 #include <stdlib.h>
 #include <algorithm>
-#include <vector>
 #include <map>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
 #include "platform.h"
 #include "net.h"
+#include "cpu.h"
+#include "benchmark.h"
 #include "../src/layer/convolution.h"
-#if NCNN_VULKAN
-#include "gpu.h"
-#endif // NCNN_VULKAN
+
+static ncnn::UnlockedPoolAllocator g_blob_pool_allocator;
+static ncnn::PoolAllocator g_workspace_pool_allocator;
+
+/*
+ * Get the filenames from direct path
+ */
+int readFileList(const char *base_path, std::vector<std::string>& file_path)
+{
+    DIR *dir;
+    struct dirent *ptr;
+
+    if ((dir=opendir(base_path)) == NULL)
+    {
+        perror("Open dir error...");
+        exit(1);
+    }
+
+    while ((ptr=readdir(dir)) != NULL)
+    {
+        if(strcmp(ptr->d_name,".")==0 || strcmp(ptr->d_name,"..")==0)    ///current dir OR parrent dir
+        {
+            continue;
+        } 
+
+        std::string path = base_path;
+        file_path.push_back(path + ptr->d_name);
+    }
+    closedir(dir);
+
+    return 1;
+}
 
 namespace ncnn {
 
@@ -369,27 +403,27 @@ public:
     float scale;
 };
 
-static int detect_squeezenet(const cv::Mat& bgr, std::vector<float>& cls_scores)
+
+static int detect_squeezenet(const std::vector<std::string> filenames, const char* param_path, const char* bin_path)
 {
+    int size = filenames.size();
+
     ncnn::QuantNet squeezenet;
 
-#if NCNN_VULKAN
-    squeezenet.use_vulkan_compute = true;
-#endif // NCNN_VULKAN
+    squeezenet.load_param(param_path);
+    squeezenet.load_model(bin_path);
 
-    squeezenet.load_param("squeezenet_v1.1.param");
-    squeezenet.load_model("squeezenet_v1.1.bin");  
+    g_blob_pool_allocator.clear();
+    g_workspace_pool_allocator.clear();     
 
     std::map<std::string,std::string> conv_bottom_blob_names = squeezenet.get_conv_bottom_blob_names();
     std::vector<std::string> conv_names = squeezenet.get_conv_names();
     std::map<std::string,std::vector<float> > weight_scales = squeezenet.get_conv_weight_blob_scales(); 
 
-
     FILE *fp=fopen("squeezenet.table", "w");
 
     // debug quantize weight
-    // step 0 quantize weight
-    printf("====> step 0\n");    
+    printf("====> Quantize the parameters.\n");    
     for (size_t i=0; i<conv_names.size(); i++)
     {
         std::string layer_name = conv_names[i];
@@ -400,7 +434,7 @@ static int detect_squeezenet(const cv::Mat& bgr, std::vector<float>& cls_scores)
         // for (size_t j=0; j<weight_scale_n.size(); j++)
         //     fprintf(stderr, "%f ", weight_scale_n[j]);
         // fprintf(stderr, "\n");
-        fprintf(fp, "%s_param0 ", layer_name.c_str());
+        fprintf(fp, "%s_param_0 ", layer_name.c_str());
         for (size_t j=0; j<weight_scale_n.size(); j++)
             fprintf(fp, "%f ", weight_scale_n[j]);
         fprintf(fp, "\n");        
@@ -418,12 +452,28 @@ static int detect_squeezenet(const cv::Mat& bgr, std::vector<float>& cls_scores)
     }    
 
     // step 1 count the max value
-    printf("====> step 1\n");
+    printf("====> Quantize the activation.\n"); 
+    printf("    ====> step 1 : fine the max value.\n");
+
+    for (size_t i=0; i<filenames.size(); i++)
     {
+        std::string img_name = filenames[i];
+
+        if ((i+1)%100 == 0)
+            fprintf(stderr, "          %d/%d\n", i+1, (int)size);
+
+        cv::Mat bgr = cv::imread(img_name, CV_LOAD_IMAGE_COLOR);
+        if (bgr.empty())
+        {
+            fprintf(stderr, "cv::imread %s failed\n", img_name.c_str());
+            return -1;
+        }         
+
         ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data, ncnn::Mat::PIXEL_BGR, bgr.cols, bgr.rows, 227, 227);
         const float mean_vals[3] = {104.f, 117.f, 123.f};
         in.substract_mean_normalize(mean_vals, 0);
 
+        // double start = ncnn::get_current_time();
         ncnn::Extractor ex = squeezenet.create_extractor();
         ex.input("data", in);
 
@@ -433,11 +483,9 @@ static int detect_squeezenet(const cv::Mat& bgr, std::vector<float>& cls_scores)
             std::string blob_name = conv_bottom_blob_names[layer_name];
 
             // fprintf(stderr, "%-20s : %s \n", layer_name.c_str(), blob_name.c_str());
-
             ncnn::Mat out;
             ex.extract(blob_name.c_str(), out);  
             // fprintf(stderr, "[%d, %d, %d]\n", out.c, out.h, out.w);
-
             for (size_t j=0; j<quantize_datas.size(); j++)
             {
                 if (quantize_datas[j].name == layer_name)
@@ -447,10 +495,44 @@ static int detect_squeezenet(const cv::Mat& bgr, std::vector<float>& cls_scores)
                 }
             }
         }
+
+        // double end = ncnn::get_current_time();
+        // double time = end - start;
+        // printf("iter cost: %.8lf ms, %s\n", time, img_name.c_str());            
     }
 
+    // {
+    //     ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data, ncnn::Mat::PIXEL_BGR, bgr.cols, bgr.rows, 227, 227);
+    //     const float mean_vals[3] = {104.f, 117.f, 123.f};
+    //     in.substract_mean_normalize(mean_vals, 0);
+
+    //     ncnn::Extractor ex = squeezenet.create_extractor();
+    //     ex.input("data", in);
+
+    //     for (size_t i=0; i<conv_names.size(); i++)
+    //     {
+    //         std::string layer_name = conv_names[i];
+    //         std::string blob_name = conv_bottom_blob_names[layer_name];
+
+    //         // fprintf(stderr, "%-20s : %s \n", layer_name.c_str(), blob_name.c_str());
+
+    //         ncnn::Mat out;
+    //         ex.extract(blob_name.c_str(), out);  
+    //         // fprintf(stderr, "[%d, %d, %d]\n", out.c, out.h, out.w);
+
+    //         for (size_t j=0; j<quantize_datas.size(); j++)
+    //         {
+    //             if (quantize_datas[j].name == layer_name)
+    //             {
+    //                 quantize_datas[j].initial_blob_max(out);
+    //                 break;
+    //             }
+    //         }
+    //     }
+    // }
+
     // step 2 histogram_interval
-    printf("====> step 2\n");
+    printf("    ====> step 2 : generatue the histogram_interval.\n");
     for (size_t i=0; i<conv_names.size(); i++)
     {
         std::string layer_name = conv_names[i];
@@ -465,12 +547,27 @@ static int detect_squeezenet(const cv::Mat& bgr, std::vector<float>& cls_scores)
         }
     }    
 
-    // step 3 kld
-    printf("====> step 3\n");
+    // step 3 histogram
+    printf("    ====> step 3 : generatue the histogram.\n");
+    for (size_t i=0; i<filenames.size(); i++)
     {
+        std::string img_name = filenames[i];
+
+        if ((i+1)%100 == 0)
+            fprintf(stderr, "          %d/%d\n", i+1, (int)size);
+
+        cv::Mat bgr = cv::imread(img_name, CV_LOAD_IMAGE_COLOR);
+        if (bgr.empty())
+        {
+            fprintf(stderr, "cv::imread %s failed\n", img_name.c_str());
+            return -1;
+        }  
+
         ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data, ncnn::Mat::PIXEL_BGR, bgr.cols, bgr.rows, 227, 227);
         const float mean_vals[3] = {104.f, 117.f, 123.f};
         in.substract_mean_normalize(mean_vals, 0);
+
+        // double start = ncnn::get_current_time();        
         ncnn::Extractor ex = squeezenet.create_extractor();
 
         ex.input("data", in);
@@ -492,10 +589,41 @@ static int detect_squeezenet(const cv::Mat& bgr, std::vector<float>& cls_scores)
                 }
             }
         }
+
+        // double end = ncnn::get_current_time();
+        // double time = end - start;
+        // printf("iter cost: %.8lf ms, %s\n", time, img_name.c_str());          
     }
 
-    // step4
-    printf("====> step 4\n");
+    // {
+    //     ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data, ncnn::Mat::PIXEL_BGR, bgr.cols, bgr.rows, 227, 227);
+    //     const float mean_vals[3] = {104.f, 117.f, 123.f};
+    //     in.substract_mean_normalize(mean_vals, 0);
+    //     ncnn::Extractor ex = squeezenet.create_extractor();
+
+    //     ex.input("data", in);
+
+    //     for (size_t i=0; i<conv_names.size(); i++)
+    //     {
+    //         std::string layer_name = conv_names[i];
+    //         std::string blob_name = conv_bottom_blob_names[layer_name];
+
+    //         ncnn::Mat out;
+    //         ex.extract(blob_name.c_str(), out);  
+
+    //         for (size_t j=0; j<quantize_datas.size(); j++)
+    //         {
+    //             if (quantize_datas[j].name == layer_name)
+    //             {
+    //                 quantize_datas[j].update_histogram(out);
+    //                 break;
+    //             }
+    //         }
+    //     }
+    // }
+
+    // step4 kld
+    printf("    ====> step 4 : using kld to find the best threshold value.\n");
     for (size_t i=0; i<conv_names.size(); i++)
     {
         std::string layer_name = conv_names[i];
@@ -518,104 +646,48 @@ static int detect_squeezenet(const cv::Mat& bgr, std::vector<float>& cls_scores)
                 break;
             }
         }
-    }    
-
+    }
 
     fclose(fp);
-    // for (size_t j=0; j<quantize_datas.size(); j++)
-    // {
-    //     if (quantize_datas[j].name == "conv1")
-    //     {
-    //         printf("hist:\n");
-    //         for (size_t i=0; i<quantize_datas[j].histogram.size(); i++)
-    //         {
-    //             printf("%f ", quantize_datas[j].histogram[i]);
-    //         }
-    //         printf("\n");
-    //     }
-    // }
-
-    // debug quantize weight
-    // for (size_t i=0; i<conv_names.size(); i++)
-    // {
-    //     std::string layer_name = conv_names[i];
-    //     std::string blob_name = conv_bottom_blob_names[layer_name];
-    //     std::vector<float> weight_scale_n = weight_scales[layer_name];
-
-    //     fprintf(stderr, "%-20s :", layer_name.c_str());
-    //     for (size_t j=0; j<weight_scale_n.size(); j++)
-    //         fprintf(stderr, "%f ", weight_scale_n[j]);
-    //     fprintf(stderr, "\n");
-    // }
-
-    // ncnn::Mat out0, out1;
-
-    // ex.extract("pool1", out0);
-    // ex.extract("fire9/concat_drop9", out1);
-
-    // cls_scores.resize(out.w);
-    // for (int j=0; j<out.w; j++)
-    // {
-    //     cls_scores[j] = out[j];
-    // }
-
-    return 0;
-}
-
-static int print_topk(const std::vector<float>& cls_scores, int topk)
-{
-    // partial sort topk with index
-    int size = cls_scores.size();
-    std::vector< std::pair<float, int> > vec;
-    vec.resize(size);
-    for (int i=0; i<size; i++)
-    {
-        vec[i] = std::make_pair(cls_scores[i], i);
-    }
-
-    std::partial_sort(vec.begin(), vec.begin() + topk, vec.end(),
-                      std::greater< std::pair<float, int> >());
-
-    // print topk and score
-    for (int i=0; i<topk; i++)
-    {
-        float score = vec[i].first;
-        int index = vec[i].second;
-        fprintf(stderr, "%d = %f\n", index, score);
-    }
+    printf("====> Save the calibration table done.\n");
 
     return 0;
 }
 
 int main(int argc, char** argv)
 {
-    if (argc != 2)
+    std::cout << "--- ncnn post training quantization tool --- " << __TIME__ << " " << __DATE__ << std::endl;   
+
+    if (argc != 4)
     {
-        fprintf(stderr, "Usage: %s [imagepath]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [imagepath] [parampath] [binpath]\n", argv[0]);
         return -1;
     }
 
     const char* imagepath = argv[1];
+    const char* parampath = argv[2];
+    const char* binpath = argv[3];
 
-    cv::Mat m = cv::imread(imagepath, 1);
-    if (m.empty())
-    {
-        fprintf(stderr, "cv::imread %s failed\n", imagepath);
-        return -1;
-    }
+    g_blob_pool_allocator.set_size_compare_ratio(0.0f);
+    g_workspace_pool_allocator.set_size_compare_ratio(0.5f);
 
-#if NCNN_VULKAN
-    ncnn::create_gpu_instance();
-#endif // NCNN_VULKAN
+    ncnn::Option opt;
+    opt.lightmode = true;
+    opt.num_threads = 2;
+    opt.blob_allocator = &g_blob_pool_allocator;
+    opt.workspace_allocator = &g_workspace_pool_allocator;
 
-    std::vector<float> cls_scores;
-    detect_squeezenet(m, cls_scores);
+    ncnn::set_default_option(opt);
+    ncnn::set_cpu_powersave(2);
+    ncnn::set_omp_dynamic(0);
+    ncnn::set_omp_num_threads(2);   
 
-#if NCNN_VULKAN
-    ncnn::destroy_gpu_instance();
-#endif // NCNN_VULKAN
+    std::vector<std::string> filenames;
 
-    // print_topk(cls_scores, 5);
+    // parse the image file
+    readFileList(imagepath, filenames);
+
+    detect_squeezenet(filenames, parampath, binpath);
 
     return 0;
 }
