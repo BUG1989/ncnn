@@ -458,7 +458,6 @@ int NetQuantize::save(const char* parampath, const char* binpath)
             // write int8_scale data
             if (op->int8_scale_term)
             {            
-                bool int8_scale_term = false;
                 std::vector<float> weight_int8scale;
                 std::vector<float> blob_int8scale;
 
@@ -950,11 +949,17 @@ int NetQuantize::save(const char* parampath, const char* binpath)
 
 int main(int argc, char** argv)
 {
-    const char* inparam = "./squeezenet.param";
-    const char* inbin = "./squeezenet.bin";
-    const char* outparam = "./squeezenet_int8.param";
-    const char* outbin = "./squeezenet_int8.bin";
-    const char* int8scale_table_path = "./squeezenet.table";
+    if (argc != 6)
+    {
+        fprintf(stderr, "usage: %s [inparam] [inbin] [outparam] [outbin] [calibration table]\n", argv[0]);
+        return -1;
+    }
+
+    const char* inparam = argv[1];
+    const char* inbin = argv[2];
+    const char* outparam = argv[3];
+    const char* outbin = argv[4];
+    const char* int8scale_table_path = argv[5];
 
     NetQuantize quantizer;
 
@@ -971,35 +976,10 @@ int main(int argc, char** argv)
 
     quantizer.load_param(inparam);
     quantizer.load_model(inbin);
+    
     quantizer.quantize_convolution();
 
     quantizer.save(outparam, outbin);
 
     return 0;
-
-    // std::map<std::string, std::vector<float> >::iterator iter = blob_int8scale_table.begin();
-    // while(iter != blob_int8scale_table.end())
-    // {
-    //     std::vector<float> blob_scales = iter->second;
-    //     printf("%s ", iter->first.c_str());
-    //     for (size_t i=0; i<blob_scales.size(); i++)
-    //         printf("%f ", blob_scales[i]);
-    //     printf("\n");
-
-    //     iter++;
-    // } 
-
-    // parse ncnn original ncnn.param and ncnn.bin
-
-    // loop every layer and quantize the convolution layer which has been masked in the scale table
-
-        // find the layer depend on the layer_name
-
-            // quantize the weight data
-            
-            // save the int8 weight data 
-            
-            // save the float32 bias data
-
-            // save the weight scale and data scale
 }
