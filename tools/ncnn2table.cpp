@@ -69,7 +69,7 @@ namespace ncnn {
 class QuantNet : public Net
 {
 public:
-    int get_conv_bottom_blob_names(std::map<std::string,std::string> &conv_bottom_blob_names)
+    int get_conv_bottom_blob_names()
     {
         // find conv bottom name or index
         for (size_t i=0; i<layers.size(); i++)
@@ -88,7 +88,7 @@ public:
         return 0;
     }
 
-    int get_conv_names(std::vector<std::string> &conv_names)
+    int get_conv_names()
     {
         for (size_t i=0; i<layers.size(); i++)
         {
@@ -104,7 +104,7 @@ public:
         return 0;
     }
 
-    int get_conv_weight_blob_scales(std::map<std::string,std::vector<float> > &weight_scales)
+    int get_conv_weight_blob_scales()
     {
         for (size_t i=0; i<layers.size(); i++)
         {
@@ -155,6 +155,11 @@ public:
 
         return 0;
     }
+
+public:
+    std::vector<std::string> conv_names;
+    std::map<std::string,std::string> conv_bottom_blob_names;
+    std::map<std::string,std::vector<float> > weight_scales;
 };
 
 } // namespace ncnn
@@ -170,6 +175,7 @@ public:
         num_bins = num;
         histogram_interval = 0.0;
         histogram.resize(num_bins);
+        initial_histogram_value();
     }
 
     int initial_blob_max(ncnn::Mat data)
@@ -196,6 +202,28 @@ public:
         return 0;
     }
 
+    int initial_histogram_value()
+    {
+        for (size_t i=0; i<histogram.size(); i++)
+        {
+            histogram[i] = 0.00001;
+        }
+
+        return 0;
+    }
+
+    int normalize_histogram() 
+    {
+        const int length = histogram.size();
+        float sum = 0;
+        
+        for (int i=0; i<length; i++)
+            sum += histogram[i];
+
+        for (int i=0; i<length; i++) 
+            histogram[i] /= sum;
+    }    
+
     int update_histogram(ncnn::Mat data)
     {
         int channel_num = data.c;
@@ -206,15 +234,15 @@ public:
             const float *data_n = data.channel(q);
             for(int i=0; i<size; i++)
             {
-                // if (data_n[i] == 0)
-                //     continue;
+                if (data_n[i] == 0)
+                    continue;
 
                 int index = std::min(static_cast<int>(std::abs(data_n[i]) / histogram_interval), 2047);
 
-                if (name == "fire2/squeeze1x1")
-                {
-                    printf("data = %f, iter = %f, index = %d\n", data_n[i], histogram_interval, index);
-                }
+                // if (name == "fire2/squeeze1x1")
+                // {
+                //     printf("data = %f, iter = %f, index = %d\n", data_n[i], histogram_interval, index);
+                // }
 
                 histogram[index]++;
             }
@@ -331,7 +359,7 @@ public:
 
                 // 左边的部分，向上取整
                 const int left_upper = ceil(start);
-                float left_scale;
+                float left_scale = 0;
                 if (left_upper > start) 
                 {
                     // 减掉取整前的数值，得到左边不足一格的比例
@@ -409,6 +437,7 @@ public:
 
     float get_data_blob_scale()
     {   
+        normalize_histogram();
         threshold_bin = threshold_distribution(histogram);
         threshold = (threshold_bin + 0.5) * histogram_interval;
         scale = 127 / threshold;
@@ -431,51 +460,40 @@ static int post_training_quantize(const std::vector<std::string> filenames, cons
 {
     int size = filenames.size();
 
-    ncnn::QuantNet squeezenet;
+    ncnn::QuantNet net;
 
-    squeezenet.load_param(param_path);
-    squeezenet.load_model(bin_path);
+    net.load_param(param_path);
+    net.load_model(bin_path);
 
     g_blob_pool_allocator.clear();
-    g_workspace_pool_allocator.clear();     
+    g_workspace_pool_allocator.clear();
 
-    // std::map<std::string,std::string> conv_bottom_blob_names = squeezenet.get_conv_bottom_blob_names();
-    // std::vector<std::string> conv_names = squeezenet.get_conv_names();
-    // std::map<std::string,std::vector<float> > weight_scales = squeezenet.get_conv_weight_blob_scales(); 
-    std::map<std::string,std::string> conv_bottom_blob_names;
-    std::map<std::string,std::vector<float> > weight_scales;
-    std::vector<std::string> conv_names;
-
-    squeezenet.get_conv_bottom_blob_names(conv_bottom_blob_names);
-    squeezenet.get_conv_weight_blob_scales(weight_scales);
-    squeezenet.get_conv_names(conv_names);
+    net.get_conv_names();
+    net.get_conv_bottom_blob_names();
+    net.get_conv_weight_blob_scales();
 
     FILE *fp=fopen(table_path, "w");
 
-    // debug quantize weight
+    // save quantization scale of weight 
     printf("====> Quantize the parameters.\n");    
-    for (size_t i=0; i<conv_names.size(); i++)
+    for (size_t i=0; i<net.conv_names.size(); i++)
     {
-        std::string layer_name = conv_names[i];
-        std::string blob_name = conv_bottom_blob_names[layer_name];
-        std::vector<float> weight_scale_n = weight_scales[layer_name];
+        std::string layer_name = net.conv_names[i];
+        std::string blob_name = net.conv_bottom_blob_names[layer_name];
+        std::vector<float> weight_scale_n = net.weight_scales[layer_name];
 
-        // fprintf(stderr, "%-20s :", layer_name.c_str());
-        // for (size_t j=0; j<weight_scale_n.size(); j++)
-        //     fprintf(stderr, "%f ", weight_scale_n[j]);
-        // fprintf(stderr, "\n");
         fprintf(fp, "%s_param_0 ", layer_name.c_str());
         for (size_t j=0; j<weight_scale_n.size(); j++)
             fprintf(fp, "%f ", weight_scale_n[j]);
         fprintf(fp, "\n");        
     }
 
-    // debug quantize data
+    // initial quantization data
     std::vector<QuantizeData> quantize_datas;
     
-    for (size_t i=0; i<conv_names.size(); i++)
+    for (size_t i=0; i<net.conv_names.size(); i++)
     {
-        std::string layer_name = conv_names[i];
+        std::string layer_name = net.conv_names[i];
 
         QuantizeData quantize_data(layer_name, 2048);
         quantize_datas.push_back(quantize_data);
@@ -504,13 +522,13 @@ static int post_training_quantize(const std::vector<std::string> filenames, cons
         in.substract_mean_normalize(mean_vals, 0);
 
         // double start = ncnn::get_current_time();
-        ncnn::Extractor ex = squeezenet.create_extractor();
+        ncnn::Extractor ex = net.create_extractor();
         ex.input("data", in);
 
-        for (size_t i=0; i<conv_names.size(); i++)
+        for (size_t i=0; i<net.conv_names.size(); i++)
         {
-            std::string layer_name = conv_names[i];
-            std::string blob_name = conv_bottom_blob_names[layer_name];
+            std::string layer_name = net.conv_names[i];
+            std::string blob_name = net.conv_bottom_blob_names[layer_name];
 
             // fprintf(stderr, "%-20s : %s \n", layer_name.c_str(), blob_name.c_str());
             ncnn::Mat out;
@@ -531,41 +549,11 @@ static int post_training_quantize(const std::vector<std::string> filenames, cons
         // printf("iter cost: %.8lf ms, %s\n", time, img_name.c_str());            
     }
 
-    // {
-    //     ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data, ncnn::Mat::PIXEL_BGR, bgr.cols, bgr.rows, 227, 227);
-    //     const float mean_vals[3] = {104.f, 117.f, 123.f};
-    //     in.substract_mean_normalize(mean_vals, 0);
-
-    //     ncnn::Extractor ex = squeezenet.create_extractor();
-    //     ex.input("data", in);
-
-    //     for (size_t i=0; i<conv_names.size(); i++)
-    //     {
-    //         std::string layer_name = conv_names[i];
-    //         std::string blob_name = conv_bottom_blob_names[layer_name];
-
-    //         // fprintf(stderr, "%-20s : %s \n", layer_name.c_str(), blob_name.c_str());
-
-    //         ncnn::Mat out;
-    //         ex.extract(blob_name.c_str(), out);  
-    //         // fprintf(stderr, "[%d, %d, %d]\n", out.c, out.h, out.w);
-
-    //         for (size_t j=0; j<quantize_datas.size(); j++)
-    //         {
-    //             if (quantize_datas[j].name == layer_name)
-    //             {
-    //                 quantize_datas[j].initial_blob_max(out);
-    //                 break;
-    //             }
-    //         }
-    //     }
-    // }
-
     // step 2 histogram_interval
     printf("    ====> step 2 : generatue the histogram_interval.\n");
-    for (size_t i=0; i<conv_names.size(); i++)
+    for (size_t i=0; i<net.conv_names.size(); i++)
     {
-        std::string layer_name = conv_names[i];
+        std::string layer_name = net.conv_names[i];
 
         for (size_t j=0; j<quantize_datas.size(); j++)
         {
@@ -600,14 +588,14 @@ static int post_training_quantize(const std::vector<std::string> filenames, cons
         in.substract_mean_normalize(mean_vals, 0);
 
         // double start = ncnn::get_current_time();        
-        ncnn::Extractor ex = squeezenet.create_extractor();
+        ncnn::Extractor ex = net.create_extractor();
 
         ex.input("data", in);
 
-        for (size_t i=0; i<conv_names.size(); i++)
+        for (size_t i=0; i<net.conv_names.size(); i++)
         {
-            std::string layer_name = conv_names[i];
-            std::string blob_name = conv_bottom_blob_names[layer_name];
+            std::string layer_name = net.conv_names[i];
+            std::string blob_name = net.conv_bottom_blob_names[layer_name];
 
             ncnn::Mat out;
             ex.extract(blob_name.c_str(), out);  
@@ -627,58 +615,12 @@ static int post_training_quantize(const std::vector<std::string> filenames, cons
         // printf("iter cost: %.8lf ms, %s\n", time, img_name.c_str());          
     }
 
-    // debug the hist
-
-
-    for (size_t j=0; j<quantize_datas.size(); j++)
-    {
-        if (quantize_datas[j].name == "fire2/squeeze1x1")
-        {
-            std::vector<float> hist = quantize_datas[j].histogram;
-            printf("\n");
-            for (size_t n=0; n<hist.size(); n++)
-            {
-                printf("%f ", hist[n]);
-            }
-
-            printf("\n");
-            break;
-        }
-    }
-
-    // {
-    //     ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data, ncnn::Mat::PIXEL_BGR, bgr.cols, bgr.rows, 227, 227);
-    //     const float mean_vals[3] = {104.f, 117.f, 123.f};
-    //     in.substract_mean_normalize(mean_vals, 0);
-    //     ncnn::Extractor ex = squeezenet.create_extractor();
-
-    //     ex.input("data", in);
-
-    //     for (size_t i=0; i<conv_names.size(); i++)
-    //     {
-    //         std::string layer_name = conv_names[i];
-    //         std::string blob_name = conv_bottom_blob_names[layer_name];
-
-    //         ncnn::Mat out;
-    //         ex.extract(blob_name.c_str(), out);  
-
-    //         for (size_t j=0; j<quantize_datas.size(); j++)
-    //         {
-    //             if (quantize_datas[j].name == layer_name)
-    //             {
-    //                 quantize_datas[j].update_histogram(out);
-    //                 break;
-    //             }
-    //         }
-    //     }
-    // }
-
     // step4 kld
     printf("    ====> step 4 : using kld to find the best threshold value.\n");
-    for (size_t i=0; i<conv_names.size(); i++)
+    for (size_t i=0; i<net.conv_names.size(); i++)
     {
-        std::string layer_name = conv_names[i];
-        std::string blob_name = conv_bottom_blob_names[layer_name];
+        std::string layer_name = net.conv_names[i];
+        std::string blob_name = net.conv_bottom_blob_names[layer_name];
         fprintf(stderr, "%-20s : ", layer_name.c_str());
 
         for (size_t j=0; j<quantize_datas.size(); j++)
