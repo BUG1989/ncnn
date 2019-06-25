@@ -38,6 +38,7 @@
 // ncnn private header
 #include "layer/convolution.h"
 #include "layer/convolutiondepthwise.h"
+#include "layer/innerproduct.h"
 
 static ncnn::Option g_default_option;
 static ncnn::UnlockedPoolAllocator g_blob_pool_allocator;
@@ -89,7 +90,7 @@ int QuantNet::get_conv_names()
     {
         ncnn::Layer* layer = layers[i];
         
-        if (layer->type == "Convolution" || layer->type == "ConvolutionDepthWise")
+        if (layer->type == "Convolution" || layer->type == "ConvolutionDepthWise" || layer->type == "InnerProduct")
         {
             std::string name = layer->name;
             conv_names.push_back(name);
@@ -106,11 +107,10 @@ int QuantNet::get_conv_bottom_blob_names()
     {
         ncnn::Layer* layer = layers[i];
         
-        if (layer->type == "Convolution" || layer->type == "ConvolutionDepthWise")
+        if (layer->type == "Convolution" || layer->type == "ConvolutionDepthWise" || layer->type == "InnerProduct")
         {
             std::string name = layer->name;
             std::string bottom_blob_name = blobs[layer->bottoms[0]].name;
-            // fprintf(stderr, "%-20s : bottom_index = %-3d name = %-20s\n", layer->name.c_str(), layer->bottoms[0], blobs[layer->bottoms[0]].name.c_str());
             conv_bottom_blob_names[name] = bottom_blob_name;
         }
     }
@@ -152,9 +152,9 @@ int QuantNet::get_conv_weight_blob_scales()
                     max_value = std::max(max_value, std::fabs(data_n[i]));
 
                 if (quant_6bit)
-                    scales.push_back(127 / max_value);
-                else
                     scales.push_back(31 / max_value);
+                else
+                    scales.push_back(127 / max_value);
             }
 
             weight_scales[name] = scales;
@@ -179,6 +179,27 @@ int QuantNet::get_conv_weight_blob_scales()
             }
 
             weight_scales[name] = scales;                
+        }
+
+        if (layer->type == "InnerProduct")
+        {
+            std::string name = layer->name;
+            const int weight_data_size_output = ((ncnn::InnerProduct*)layer)->weight_data_size / ((ncnn::InnerProduct*)layer)->num_output;
+            std::vector<float> scales;
+
+            for (int n=0; n<((ncnn::InnerProduct*)layer)->num_output; n++)
+            {
+                const ncnn::Mat weight_data_n = ((ncnn::InnerProduct*)layer)->weight_data.range(weight_data_size_output * n, weight_data_size_output);
+                const float *data_n = weight_data_n;
+                float max_value = std::numeric_limits<float>::min();
+
+                for (int i = 0; i < weight_data_size_output; i++)
+                    max_value = std::max(max_value, std::fabs(data_n[i]));
+
+                scales.push_back(127 / max_value);
+            }
+
+            weight_scales[name] = scales;            
         }
     }              
 
@@ -569,7 +590,7 @@ static int post_training_quantize(const std::vector<std::string> filenames, cons
 
         ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data, ncnn::Mat::PIXEL_BGR, bgr.cols, bgr.rows, weith, height);
         in.substract_mean_normalize(mean_vals, norm_vals);
-        
+
         ncnn::Extractor ex = net.create_extractor();
         ex.input("data", in);
 

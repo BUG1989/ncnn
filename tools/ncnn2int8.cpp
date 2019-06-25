@@ -172,6 +172,7 @@ public:
 public:
     int quantize_convolution();
     int quantize_convolutiondepthwise();
+    int quantize_innerproduct();
 
 public:
     int fprintf_param_int_array(int id, const ncnn::Mat& m, FILE* pp);
@@ -310,6 +311,72 @@ int NetQuantize::quantize_convolutiondepthwise()
         }
 
         convdw->int8_scale_term = 1;
+    }
+
+    return 0;
+}
+
+int NetQuantize::quantize_innerproduct()
+{
+    const int layer_count = layers.size();
+    for (int i=0; i<layer_count; i++)
+    {
+        // find convoultion layer
+        if (layers[i]->type != "InnerProduct")
+            continue;
+
+        // find InnerProduct layer
+        std::map<std::string, std::vector<float> >::iterator iter_data = blob_int8scale_table.find(layers[i]->name);
+        if (iter_data == weight_int8scale_table.end())
+            continue;
+
+        char key[256];
+        sprintf(key, "%s_param_0", layers[i]->name.c_str());
+        std::map<std::string, std::vector<float> >::iterator iter = weight_int8scale_table.find(key);
+        if (iter == weight_int8scale_table.end())
+        {
+            fprintf(stderr, "this layer need to be quantized, but no scale param!\n");
+            return -1;
+        }
+            
+        // InnerProduct - quantize weight from fp32 to int8
+        ncnn::InnerProduct* fc = (ncnn::InnerProduct*)layers[i];
+
+        std::vector<float> weight_data_int8_scales = iter->second;
+
+        fprintf(stderr, "quantize_convolution %s\n", fc->name.c_str());
+
+        {
+            ncnn::Mat int8_weight_data(fc->weight_data_size, (size_t)1u);
+            if (int8_weight_data.empty())
+                return -100;
+
+            const int weight_data_size_output = fc->weight_data_size / fc->num_output;
+
+            // quantize weight to int8
+            for (int n=0; n<fc->num_output; n++)
+            {
+                ncnn::Layer* op = ncnn::create_layer(ncnn::LayerType::Quantize);
+
+                ncnn::ParamDict pd;
+                pd.set(0, weight_data_int8_scales[n]);// scale
+
+                op->load_param(pd);
+
+                ncnn::Option opt;
+                opt.blob_allocator = int8_weight_data.allocator;
+
+                const ncnn::Mat weight_data_n = fc->weight_data.range(weight_data_size_output * n, weight_data_size_output);
+                ncnn::Mat int8_weight_data_n = int8_weight_data.range(weight_data_size_output * n, weight_data_size_output);
+                op->forward(weight_data_n, int8_weight_data_n, opt);
+
+                delete op;
+            }
+
+            fc->weight_data = int8_weight_data;
+        }
+
+        fc->int8_scale_term = 2;
     }
 
     return 0;
@@ -709,6 +776,29 @@ int NetQuantize::save(const char* parampath, const char* binpath)
 
             fwrite_weight_tag_data(0, op->weight_data, bp);
             fwrite_weight_data(op->bias_data, bp);
+
+            // write int8_scale data
+            if (op->int8_scale_term)
+            {            
+                std::vector<float> weight_int8scale;
+                std::vector<float> blob_int8scale;
+
+                char key[256];
+                sprintf(key, "%s_param_0", layer->name.c_str());
+                if (weight_int8scale_table.find(std::string(key)) != weight_int8scale_table.end())
+                {
+                    weight_int8scale = weight_int8scale_table[std::string(key)];
+                }
+
+                if (blob_int8scale_table.find(layer->name) != blob_int8scale_table.end())
+                {
+                    blob_int8scale = blob_int8scale_table[layer->name];
+                }
+
+                // write int8_scale data
+                fwrite(weight_int8scale.data(), sizeof(float), weight_int8scale.size(), bp);
+                fwrite(blob_int8scale.data(), sizeof(float), blob_int8scale.size(), bp);
+            }            
         }
         else if (layer->type == "Input")
         {
@@ -1069,6 +1159,7 @@ int main(int argc, char** argv)
     
     quantizer.quantize_convolution();
     quantizer.quantize_convolutiondepthwise();
+    quantizer.quantize_innerproduct();
 
     quantizer.save(outparam, outbin);
 
